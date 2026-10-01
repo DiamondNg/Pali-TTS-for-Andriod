@@ -8,8 +8,8 @@ source.include_exts = py
 
 version = 1.0
 
-# Versions pinned for proven compatibility
-requirements = python3==3.13,kivy==2.3.1,certifi
+# Keep the Android Python recipe and Kivy on a compatible stable combination.
+requirements = python3==3.11,kivy==2.3.0,certifi
 
 orientation = portrait
 fullscreen = 0
