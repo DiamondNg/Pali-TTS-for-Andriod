@@ -18,7 +18,7 @@ jobs:
         run: |
           docker run --rm \
             -v $GITHUB_WORKSPACE/android:/home/user/hostcwd \
-            kivy/buildozer:latest \
+            kivy/buildozer:ubuntu-python3.11 \
             android debug
 
       - name: Upload APK
