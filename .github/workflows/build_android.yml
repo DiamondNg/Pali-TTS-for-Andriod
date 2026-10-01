@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['android/**']
+    paths:
+      - "android/**"
 
 jobs:
   build:
@@ -14,12 +15,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build APK
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
         run: |
-          docker run --rm \
-            -v $GITHUB_WORKSPACE/android:/home/user/hostcwd \
-            kivy/buildozer:ubuntu-python3.11 \
-            android debug
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libffi-dev \
+            libssl-dev
+
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "buildozer==1.5.0" \
+            "cython==0.29.36"
+
+      - name: Build APK
+        working-directory: android
+        run: buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
