@@ -15,20 +15,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
+      - name: Install Python 3.11 as system python3
+        run: |
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
+          sudo apt-get update -qq
+          sudo apt-get install -y python3.11 python3.11-dev python3.11-distutils
+          curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.11
+          sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 20
+          sudo update-alternatives --set python3 /usr/bin/python3.11
+          python3 --version
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update -qq
           sudo apt-get install -y \
             git zip unzip \
             libffi-dev libssl-dev \
@@ -36,7 +39,7 @@ jobs:
             zlib1g-dev autoconf automake libtool cmake pkg-config
 
       - name: Install Buildozer and Cython
-        run: pip install buildozer==1.5.0 cython==0.29.36
+        run: python3.11 -m pip install buildozer==1.5.0 cython==0.29.36
 
       - name: Cache Android SDK / NDK and Buildozer downloads
         uses: actions/cache@v4
@@ -57,4 +60,4 @@ jobs:
         with:
           name: PaliTTS-android
           path: android/bin/*.apk
-          retention-days: 90
+          retention-days: 30
