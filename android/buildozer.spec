@@ -9,7 +9,7 @@ source.include_exts = py
 version = 1.0
 
 # Core requirements only — Android TTS is used via jnius (no edge-tts needed)
-requirements = python3==3.11,kivy==2.3.0,certifi
+requirements = python3==3.14.2,kivy==2.3.0,certifi
 
 orientation = portrait
 fullscreen = 0
