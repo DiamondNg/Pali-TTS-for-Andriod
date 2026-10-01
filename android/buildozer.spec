@@ -9,7 +9,7 @@ source.include_exts = py
 version = 1.0
 
 # Versions pinned for proven compatibility
-requirements = python3==3.11,kivy==2.3.0,certifi
+requirements = python3==3.13,kivy==2.3.1,certifi
 
 orientation = portrait
 fullscreen = 0
