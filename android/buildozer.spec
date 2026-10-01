@@ -26,12 +26,7 @@ android.accept_sdk_license = True
 android.archs = arm64-v8a, armeabi-v7a
 
 # Allow the app to receive text shared from other apps (Share Sheet)
-android.manifest.intent_filters =
-    <intent-filter>
-        <action android:name="android.intent.action.SEND" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <data android:mimeType="text/plain" />
-    </intent-filter>
+android.manifest.intent_filters = <intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="text/plain" /></intent-filter>
 
 [buildozer]
 log_level = 2
