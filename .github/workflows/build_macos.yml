@@ -58,8 +58,13 @@ jobs:
             rm -rf "$L"/EXTERNALLY-MANAGED "$L"/test "$L"/idlelib "$L"/ensurepip "$L"/turtledemo \
                    "$L"/site-packages/pip "$L"/site-packages/pip-* "$L"/site-packages/bin
             find "$d" -name __pycache__ -type d -prune -exec rm -rf {} +
+            # Developer-only files: headers, static libs, build config
+            rm -rf "$d"/include "$d"/share "$d"/lib/pkgconfig "$d"/bin/python3*-config \
+                   "$L"/config-3.*-darwin
+            find "$d" -name '*.a' -delete
           done
           du -sh runtime/*
+          du -sh runtime/arm64/lib/* runtime/arm64/lib/python3.*/site-packages/* | sort -h | tail -12
 
       - name: Report minimum macOS of bundled binaries
         run: |
@@ -69,7 +74,7 @@ jobs:
               v=$(otool -l "$f" 2>/dev/null |
                   awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&/^ *(minos|version) /{print $2; f=0}' | head -1)
               echo "$v ${f#runtime/$arch/}"
-            done | sort -V > "min-$arch.txt"
+            done | grep -v '^ ' | sort -V > "min-$arch.txt"
             echo "$arch: requires macOS $(tail -1 "min-$arch.txt" | cut -d' ' -f1) or later; highest:"
             tail -5 "min-$arch.txt"
           done

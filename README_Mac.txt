@@ -3,8 +3,7 @@ Pali TTS — macOS
 
 REQUIREMENTS
   • macOS 11 or later on Apple Silicon (M1/M2/M3/M4...);
-    macOS 10.13 or later on Intel Macs (exact minimum is printed by
-    the build; see the GitHub Actions log)
+    macOS 10.15 (Catalina) or later on Intel Macs
   • Nothing else to install: Python and all libraries are inside the DMG
   • Internet connection for the Microsoft voice (Pali→Kannada script
     conversion runs on the Mac, with the online service as a fallback)
