@@ -26,7 +26,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "0.8.0"
+          version: "0.12.21"
 
       # Self-contained Python (python-build-standalone, includes Tkinter) for
       # both chip types, with all packages pre-installed: users install nothing.
@@ -64,11 +64,14 @@ jobs:
       - name: Report minimum macOS of bundled binaries
         run: |
           for arch in arm64 x86_64; do
-            min=$(find runtime/$arch -type f \( -name '*.so' -o -name '*.dylib' -o -path '*/bin/python3.*' \) \
-                    -exec otool -l {} \; 2>/dev/null \
-                  | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&/^ *(minos|version) /{print $2; f=0}' \
-                  | sort -V | tail -1)
-            echo "$arch: requires macOS $min or later"
+            find runtime/$arch -type f \( -name '*.so' -o -name '*.dylib' -o -path '*/bin/python3.*' \) |
+            while read -r f; do
+              v=$(otool -l "$f" 2>/dev/null |
+                  awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&/^ *(minos|version) /{print $2; f=0}' | head -1)
+              echo "$v ${f#runtime/$arch/}"
+            done | sort -V > "min-$arch.txt"
+            echo "$arch: requires macOS $(tail -1 "min-$arch.txt" | cut -d' ' -f1) or later; highest:"
+            tail -5 "min-$arch.txt"
           done
 
       - name: Test Intel runtime under Rosetta
