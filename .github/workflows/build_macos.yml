@@ -2,6 +2,8 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]   # creating a Release on the GitHub website builds + attaches the DMG
   push:
     tags: ['v*']
     branches: ['**']
@@ -43,7 +45,7 @@ jobs:
           ditto "$(ls -d "$UV_PYTHON_INSTALL_DIR"/cpython-"$PY_VERSION".*-macos-x86_64-none | head -1)" runtime/x86_64
           PIP_PY=runtime/arm64/bin/python3
           "$PIP_PY" -m pip --version || "$PIP_PY" -m ensurepip
-          # Wheels for the oldest macOS each chip supports (Intel 10.13, Apple Silicon 11)
+          # Wheels no newer than the bundled Python's own minimum (Intel 10.15, Apple Silicon 11)
           for pair in "arm64 macosx_11_0_arm64" "x86_64 macosx_10_13_x86_64"; do
             set -- $pair
             SITE=$(ls -d runtime/"$1"/lib/python3.*/site-packages)
