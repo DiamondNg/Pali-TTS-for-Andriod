@@ -6,6 +6,8 @@ import tempfile
 import shutil
 import signal
 import threading
+import time
+import json
 import platform
 from datetime import datetime
 import tkinter as tk
@@ -84,9 +86,24 @@ def filter_pali_lines(text):
 
 # ── Aksharamukha API ──────────────────────────────────────────────────────────
 def to_kannada(text):
+    # aksharamukha handles ṃ (dot-below) but not ṁ (dot-above)
+    text = text.replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
+    try:
+        kannada = _to_kannada_local(text)
+    except Exception:
+        kannada = _to_kannada_online(text)
+    for ch in [".", ";", "!", "?"]:
+        kannada = kannada.replace(ch, "।")
+    return kannada
+
+def _to_kannada_local(text):
+    # Offline, via the aksharamukha package (installed by the installer)
+    from aksharamukha import transliterate
+    return transliterate.process("IASTPali", "Kannada", text, nativize=True)
+
+def _to_kannada_online(text):
     import urllib.request
     import urllib.parse
-    text = text.replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
     data = urllib.parse.urlencode({
         "source": "IASTPali",
         "target": "Kannada",
@@ -99,10 +116,7 @@ def to_kannada(text):
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
-        kannada = resp.read().decode("utf-8")
-    for ch in [".", ";", "!", "?"]:
-        kannada = kannada.replace(ch, "।")
-    return kannada
+        return resp.read().decode("utf-8")
 
 
 # ── Edge TTS ──────────────────────────────────────────────────────────────────
@@ -114,6 +128,50 @@ async def _generate(kannada_text, output_path, rate, voice):
 def generate_audio(kannada_text, output_path, rate, voice):
     import asyncio
     asyncio.run(_generate(kannada_text, output_path, rate, voice))
+
+
+# ── Settings (remembered between uses) ────────────────────────────────────────
+def _settings_path():
+    if IS_WINDOWS:
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+    else:
+        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    return os.path.join(base, "PaliTTS", "settings.json")
+
+def load_settings():
+    try:
+        with open(_settings_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+def save_settings(data):
+    path = _settings_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except OSError:
+        pass
+
+
+# ── Audio helpers ─────────────────────────────────────────────────────────────
+def audio_duration(path):
+    """Length of the audio file in seconds, or None if unknown."""
+    if not IS_MAC:
+        return None
+    try:
+        out = subprocess.run(["afinfo", path], capture_output=True,
+                             text=True, timeout=10).stdout
+        m = re.search(r"estimated duration:\s*([\d.]+)", out)
+        return float(m.group(1)) if m else None
+    except Exception:
+        return None
+
+def fmt_time(seconds):
+    seconds = int(seconds)
+    return "%d:%02d" % (seconds // 60, seconds % 60)
 
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
@@ -128,6 +186,18 @@ class PaliTTSWindow:
         self.audio_key = None     # (text, rate, voice) of audio_path
         self.play_key = None      # (text, rate, voice) of what is playing/paused
         self.saved_key = None     # (text, rate, voice) last saved to Downloads
+        self.audio_secs = None    # length of audio_path in seconds
+        self.elapsed = 0.0        # seconds played before the current run
+        self.started = None       # time.monotonic() when playback (re)started
+        self.poll_id = None       # pending root.after() for _poll
+
+        settings = load_settings()
+        speed = settings.get("speed", DEFAULT_SPEED)
+        if not isinstance(speed, int) or not 0 <= speed < len(SPEEDS):
+            speed = DEFAULT_SPEED
+        voice = settings.get("voice")
+        if voice not in [v for _, v in VOICES]:
+            voice = VOICES[0][1]
 
         root.title("Pali TTS")
         root.resizable(False, False)
@@ -150,7 +220,7 @@ class PaliTTSWindow:
         # ── Speed ─────────────────────────────────────────────────────────────
         self.speed_label = ttk.Label(root, text="", font=("", 11, "bold"))
         self.speed_label.pack(anchor="w")
-        self.slider_var = tk.DoubleVar(value=DEFAULT_SPEED)
+        self.slider_var = tk.DoubleVar(value=speed)
         slider = ttk.Scale(root, from_=0, to=len(SPEEDS) - 1,
                            orient="horizontal", variable=self.slider_var,
                            command=self._on_drag, length=300)
@@ -166,13 +236,13 @@ class PaliTTSWindow:
         voice_frame = ttk.Frame(root)
         voice_frame.pack(anchor="w", pady=(12, 0))
         ttk.Label(voice_frame, text="Voice:").pack(side="left", padx=(0, 10))
-        self.voice_var = tk.StringVar(value="kn-IN-GaganNeural")
+        self.voice_var = tk.StringVar(value=voice)
         for label, voice_id in VOICES:
             ttk.Radiobutton(voice_frame, text=label, variable=self.voice_var,
                             value=voice_id).pack(side="left", padx=(0, 12))
 
         # ── Save checkbox ─────────────────────────────────────────────────────
-        self.save_var = tk.BooleanVar(value=False)
+        self.save_var = tk.BooleanVar(value=bool(settings.get("save", False)))
         ttk.Checkbutton(root, text="Save MP3 to Downloads",
                         variable=self.save_var).pack(anchor="w", pady=(10, 0))
         ttk.Label(root, text="The MP3 is saved at the speed and voice chosen above.",
@@ -189,10 +259,21 @@ class PaliTTSWindow:
         self.play_btn = ttk.Button(btn_frame, text=PLAY_TEXT, command=self._toggle)
         self.play_btn.pack(side="right", expand=True, padx=(6, 0))
 
-        # ── Status label ──────────────────────────────────────────────────────
+        # ── Status + progress ─────────────────────────────────────────────────
+        status_frame = ttk.Frame(root)
+        status_frame.pack(fill="x", pady=(8, 0))
         self.status_var = tk.StringVar(value="")
-        ttk.Label(root, textvariable=self.status_var,
-                  foreground="#555", font=("", 9)).pack(anchor="w", pady=(8, 0))
+        ttk.Label(status_frame, textvariable=self.status_var,
+                  foreground="#555", font=("", 9)).pack(side="left")
+        self.time_var = tk.StringVar(value="")
+        ttk.Label(status_frame, textvariable=self.time_var,
+                  foreground="#555", font=("", 9)).pack(side="right")
+        ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
+                  foreground="#888", font=("", 8)).pack(anchor="w", pady=(4, 0))
+
+        # ── Keyboard ──────────────────────────────────────────────────────────
+        root.bind("<space>", self._on_space)
+        self.text_box.bind("<Escape>", lambda e: root.focus_set())
 
         # ── Position near cursor ──────────────────────────────────────────────
         root.update_idletasks()
@@ -205,7 +286,10 @@ class PaliTTSWindow:
         root.attributes("-topmost", True)
         root.after(200, lambda: root.attributes("-topmost", False))
         root.focus_force()
-        self.text_box.focus_set()
+        if initial_text:
+            root.focus_set()  # so Space plays straight away
+        else:
+            self.text_box.focus_set()
 
     # ── Settings ──────────────────────────────────────────────────────────────
     def _speed_index(self):
@@ -229,6 +313,27 @@ class PaliTTSWindow:
         return (text, SPEEDS[self._speed_index()][1], self.voice_var.get())
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
+    def _on_space(self, event):
+        # Let Space type in the text box and activate focused buttons as usual
+        if event.widget is self.text_box or isinstance(
+                event.widget, (ttk.Button, ttk.Checkbutton, ttk.Radiobutton)):
+            return None
+        self._toggle()
+        return "break"
+
+    def _played_secs(self):
+        if self.started is None:
+            return self.elapsed
+        return self.elapsed + time.monotonic() - self.started
+
+    def _show_time(self):
+        played = self._played_secs()
+        if self.audio_secs:
+            self.time_var.set(fmt_time(min(played, self.audio_secs)) + " / " +
+                              fmt_time(self.audio_secs))
+        else:
+            self.time_var.set(fmt_time(played))
+
     def _is_playing(self):
         return self.proc is not None and self.proc.poll() is None
 
@@ -254,6 +359,7 @@ class PaliTTSWindow:
             self._begin_playback(key)
             return
         self.busy = True
+        self.time_var.set("")
         self.play_btn.config(state="disabled")
         self.status_var.set("Connecting...")
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
@@ -276,15 +382,16 @@ class PaliTTSWindow:
             _unlink(tmp_path)
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
-        self._after(self._generated, key, tmp_path)
+        self._after(self._generated, key, tmp_path, audio_duration(tmp_path))
 
     def _generation_failed(self, msg):
         self.busy = False
         self.status_var.set(msg)
         self.play_btn.config(state="normal")
 
-    def _generated(self, key, path):
+    def _generated(self, key, path, secs):
         self.busy = False
+        self.audio_secs = secs
         self.play_btn.config(state="normal")
         if self.audio_path and self.audio_path != path:
             _unlink(self.audio_path)
@@ -298,6 +405,8 @@ class PaliTTSWindow:
         self.status_var.set(saved_msg or "Playing...")
         if IS_MAC:
             self.proc = subprocess.Popen(["afplay", self.audio_path])
+            self.elapsed, self.started = 0.0, time.monotonic()
+            self._show_time()
             self.play_btn.config(text=PAUSE_TEXT)
             self.stop_btn.config(state="normal")
             self._poll(self.proc)
@@ -320,8 +429,14 @@ class PaliTTSWindow:
         if proc is not self.proc:
             return  # stopped or replaced
         if proc.poll() is None:
-            self.root.after(200, self._poll, proc)
+            if not self.paused:
+                self._show_time()
+            self.poll_id = self.root.after(200, self._poll, proc)
             return
+        self.started = None
+        if self.audio_secs:
+            self.elapsed = self.audio_secs
+        self._show_time()
         self.proc = None
         self.paused = False
         self.play_btn.config(text=PLAY_TEXT)
@@ -331,6 +446,7 @@ class PaliTTSWindow:
 
     def _pause(self):
         os.kill(self.proc.pid, signal.SIGSTOP)
+        self.elapsed, self.started = self._played_secs(), None
         self.paused = True
         self.play_btn.config(text=RESUME_TEXT)
         self.status_var.set("Paused.")
@@ -338,6 +454,7 @@ class PaliTTSWindow:
     def _resume(self):
         self._save_if_requested(self.play_key)
         os.kill(self.proc.pid, signal.SIGCONT)
+        self.started = time.monotonic()
         self.paused = False
         self.play_btn.config(text=PAUSE_TEXT)
         self.status_var.set("Playing...")
@@ -347,6 +464,8 @@ class PaliTTSWindow:
         if proc is not None and proc.poll() is None:
             proc.kill()  # SIGKILL also ends a paused (SIGSTOPped) process
             proc.wait()
+        self.started = None
+        self.time_var.set("")
         self.paused = False
         self.play_btn.config(text=PLAY_TEXT)
         self.stop_btn.config(state="disabled")
@@ -374,7 +493,14 @@ class PaliTTSWindow:
         return "Saved: " + mp3_name
 
     def _close(self):
+        save_settings({
+            "speed": self._speed_index(),
+            "voice": self.voice_var.get(),
+            "save": bool(self.save_var.get()),
+        })
         self._stop()
+        if self.poll_id is not None:
+            self.root.after_cancel(self.poll_id)
         if self.audio_path:
             _unlink(self.audio_path)
         self.root.destroy()

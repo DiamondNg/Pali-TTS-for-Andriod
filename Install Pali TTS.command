@@ -75,9 +75,9 @@ echo "Creating Python environment in $VENV ..."
 $SUDO mkdir -p "$INSTALL_DIR"
 $SUDO rm -rf "$VENV"
 $SUDO "$PYTHON3" -m venv "$VENV"
-echo "Installing edge-tts (needs internet)..."
-$SUDO "$VENV_PY" -m pip install --quiet --disable-pip-version-check edge-tts certifi
-"$VENV_PY" -c 'import edge_tts, certifi, tkinter' # sanity check
+echo "Installing edge-tts and aksharamukha (needs internet, may take a minute)..."
+$SUDO "$VENV_PY" -m pip install --quiet --disable-pip-version-check edge-tts aksharamukha certifi
+"$VENV_PY" -c 'import edge_tts, certifi, tkinter; from aksharamukha import transliterate' # sanity check
 # python.org builds ship without CA certificates for urllib; use certifi's
 CERT_FILE="$("$VENV_PY" -c 'import certifi; print(certifi.where())')"
 echo "Done."

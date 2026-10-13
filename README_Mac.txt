@@ -6,10 +6,11 @@ REQUIREMENTS
   • Python 3.8+ with Tkinter. Easiest: the installer from
     https://www.python.org/downloads/macos/
     (Homebrew Python also works, but needs:  brew install python-tk)
-  • Internet connection (used for transliteration + TTS)
+  • Internet connection (for the Microsoft voice; Pali→Kannada script
+    conversion runs on the Mac, with the online service as a fallback)
 
 NETWORK DOMAINS TO WHITELIST (if on a filtered network)
-  • aksharamukha-plugin.appspot.com  (HTTPS port 443)
+  • aksharamukha-plugin.appspot.com  (HTTPS port 443, fallback only)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
@@ -36,7 +37,10 @@ HOW TO USE
          click it to pause, and ▶ Resume to continue from that point.
          ⏹ Stop ends playback. If you change the text, speed or voice
          while paused, Resume starts again with the new settings.
-       - Closing the window stops playback.
+       - Space bar = play / pause (press Esc first if you are typing
+         in the text box). Elapsed / total time shows bottom-right.
+       - Closing the window stops playback. Speed, voice and the
+         save option are remembered for next time.
 
 UNINSTALL
   Run in Terminal:
@@ -48,8 +52,8 @@ TROUBLESHOOTING
     run the installer again.
   • "No Pali text detected" — the tool filters out English and
     section numbers; make sure the selection contains Pali words.
-  • "Transliteration failed" — check internet; the aksharamukha
-    API must be reachable.
+  • "Transliteration failed" — the local converter failed and the
+    online aksharamukha API was unreachable; re-run the installer.
   • "Audio generation failed" — check internet; Microsoft TTS
     (speech.platform.bing.com) must be reachable.
   • Service not in right-click menu — try System Settings →
