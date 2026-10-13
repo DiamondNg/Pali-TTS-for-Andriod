@@ -9,6 +9,7 @@ on:
       - 'Install Pali TTS.command'
       - 'pali_tts.py'
       - 'README_Mac.txt'
+      - 'requirements-macos.txt'
       - '.github/workflows/build_macos.yml'
 
 permissions:
@@ -22,6 +23,59 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.0"
+
+      # Self-contained Python (python-build-standalone, includes Tkinter) for
+      # both chip types, with all packages pre-installed: users install nothing.
+      - name: Build bundled Python runtimes
+        env:
+          PY_VERSION: "3.13"
+        run: |
+          set -e
+          export UV_PYTHON_INSTALL_DIR="$RUNNER_TEMP/uvpy"
+          uv python install "cpython-${PY_VERSION}-macos-aarch64-none" "cpython-${PY_VERSION}-macos-x86_64-none"
+          ls "$UV_PYTHON_INSTALL_DIR"
+          mkdir -p runtime
+          ditto "$(ls -d "$UV_PYTHON_INSTALL_DIR"/cpython-"$PY_VERSION".*-macos-aarch64-none | head -1)" runtime/arm64
+          ditto "$(ls -d "$UV_PYTHON_INSTALL_DIR"/cpython-"$PY_VERSION".*-macos-x86_64-none | head -1)" runtime/x86_64
+          PIP_PY=runtime/arm64/bin/python3
+          "$PIP_PY" -m pip --version || "$PIP_PY" -m ensurepip
+          # Wheels for the oldest macOS each chip supports (Intel 10.13, Apple Silicon 11)
+          for pair in "arm64 macosx_11_0_arm64" "x86_64 macosx_10_13_x86_64"; do
+            set -- $pair
+            SITE=$(ls -d runtime/"$1"/lib/python3.*/site-packages)
+            "$PIP_PY" -m pip install --quiet --disable-pip-version-check --break-system-packages \
+              --target "$SITE" --upgrade --only-binary=:all: --platform "$2" \
+              --python-version "$PY_VERSION" --implementation cp \
+              -r requirements-macos.txt
+          done
+          # Slim down: no pip, tests, IDLE, caches
+          for d in runtime/*; do
+            L=$(ls -d "$d"/lib/python3.*)
+            rm -rf "$L"/EXTERNALLY-MANAGED "$L"/test "$L"/idlelib "$L"/ensurepip "$L"/turtledemo \
+                   "$L"/site-packages/pip "$L"/site-packages/pip-* "$L"/site-packages/bin
+            find "$d" -name __pycache__ -type d -prune -exec rm -rf {} +
+          done
+          du -sh runtime/*
+
+      - name: Report minimum macOS of bundled binaries
+        run: |
+          for arch in arm64 x86_64; do
+            min=$(find runtime/$arch -type f \( -name '*.so' -o -name '*.dylib' -o -path '*/bin/python3.*' \) \
+                    -exec otool -l {} \; 2>/dev/null \
+                  | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&/^ *(minos|version) /{print $2; f=0}' \
+                  | sort -V | tail -1)
+            echo "$arch: requires macOS $min or later"
+          done
+
+      - name: Test Intel runtime under Rosetta
+        run: |
+          arch -x86_64 runtime/x86_64/bin/python3 -c 'import platform, edge_tts, tkinter, certifi; tkinter.Tcl(); print(platform.machine(), platform.python_version(), "OK")'
+          PYTHONPATH=. arch -x86_64 runtime/x86_64/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))'
+
       - name: Build DMG
         run: |
           set -e
@@ -30,12 +84,16 @@ jobs:
           cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
           chmod +x "$STAGE/Install Pali TTS.command"
+          ditto runtime "$STAGE/.runtime"
           hdiutil create -volname "Pali TTS" -srcfolder "$STAGE" \
-            -ov -format UDZO PaliTTS-macOS.dmg
+            -ov -format ULFO PaliTTS-macOS.dmg
+          ls -lh PaliTTS-macOS.dmg
 
       - name: Smoke-test the installer from the DMG
         run: |
           set -e
+          # Simulate a downloaded (quarantined) DMG
+          xattr -w com.apple.quarantine "0081;00000000;Safari;" PaliTTS-macOS.dmg
           hdiutil attach PaliTTS-macOS.dmg -nobrowse
           # Choose "Just me", then press Enter at the final prompt
           printf '1\n\n' | bash "/Volumes/Pali TTS/Install Pali TTS.command"
@@ -44,9 +102,10 @@ jobs:
           test -f "$D/pali_tts.py"
           test -x "$D/run.sh"
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
-          "$D/venv/bin/python3" -c 'import edge_tts, tkinter; print("venv OK")'
-          # Offline transliteration must work in CI (the app silently falls back otherwise)
-          (cd "$D" && venv/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
+          "$D/runtime/bin/python3" -c 'import edge_tts, tkinter; tkinter.Tcl(); print("runtime OK")'
+          (cd "$D" && runtime/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
+          # The Tk window itself (needs the runner's GUI session)
+          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); r.update(); r.destroy(); print("Tk", tkinter.TkVersion, "window OK")'
           cat "$D/run.sh"
 
       - name: Upload DMG

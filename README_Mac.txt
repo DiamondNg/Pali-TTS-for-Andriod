@@ -2,11 +2,11 @@ Pali TTS — macOS
 ================
 
 REQUIREMENTS
-  • macOS 10.15 or later
-  • Python 3.8+ with Tkinter. Easiest: the installer from
-    https://www.python.org/downloads/macos/
-    (Homebrew Python also works, but needs:  brew install python-tk)
-  • Internet connection (for the Microsoft voice; Pali→Kannada script
+  • macOS 11 or later on Apple Silicon (M1/M2/M3/M4...);
+    macOS 10.13 or later on Intel Macs (exact minimum is printed by
+    the build; see the GitHub Actions log)
+  • Nothing else to install: Python and all libraries are inside the DMG
+  • Internet connection for the Microsoft voice (Pali→Kannada script
     conversion runs on the Mac, with the online service as a fallback)
 
 NETWORK DOMAINS TO WHITELIST (if on a filtered network)
@@ -19,8 +19,8 @@ INSTALLATION
      If macOS says it "cannot verify" the file (it is not Apple-signed):
      click Done, then System Settings → Privacy & Security → scroll down
      → "Open Anyway" for "Install Pali TTS.command".
-     The installer creates its own Python environment in
-     ~/Library/Scripts/PaliTTS/venv (no system-wide pip install).
+     The installer copies its own Python (about 70–100 MB) into
+     ~/Library/Scripts/PaliTTS/runtime — no internet needed to install.
   2. When finished it says "Done!" — close the Terminal window.
   3. If the right-click menu item does not appear immediately,
      log out and back in (or restart).
@@ -48,8 +48,7 @@ UNINSTALL
     rm -rf ~/Library/Scripts/PaliTTS
 
 TROUBLESHOOTING
-  • "Python environment is broken" — Python was upgraded/removed;
-    run the installer again.
+  • "Python environment is broken" — run the installer again.
   • "No Pali text detected" — the tool filters out English and
     section numbers; make sure the selection contains Pali words.
   • "Transliteration failed" — the local converter failed and the
