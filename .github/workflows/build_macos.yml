@@ -1,0 +1,62 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+    branches: ['**']
+    paths:
+      - 'Install Pali TTS.command'
+      - 'pali_tts.py'
+      - 'README_Mac.txt'
+      - '.github/workflows/build_macos.yml'
+
+permissions:
+  contents: write   # needed to create the GitHub Release on tag pushes
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build DMG
+        run: |
+          set -e
+          STAGE="$RUNNER_TEMP/dmg"
+          mkdir -p "$STAGE"
+          cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
+          cp README_Mac.txt "$STAGE/Read Me.txt"
+          chmod +x "$STAGE/Install Pali TTS.command"
+          hdiutil create -volname "Pali TTS" -srcfolder "$STAGE" \
+            -ov -format UDZO PaliTTS-macOS.dmg
+
+      - name: Smoke-test the installer from the DMG
+        run: |
+          set -e
+          hdiutil attach PaliTTS-macOS.dmg -nobrowse
+          # Choose "Just me", then press Enter at the final prompt
+          printf '1\n\n' | bash "/Volumes/Pali TTS/Install Pali TTS.command"
+          hdiutil detach "/Volumes/Pali TTS"
+          D="$HOME/Library/Scripts/PaliTTS"
+          test -f "$D/pali_tts.py"
+          test -x "$D/run.sh"
+          test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
+          "$D/venv/bin/python3" -c 'import edge_tts, tkinter; print("venv OK")'
+          cat "$D/run.sh"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaliTTS-macOS
+          path: PaliTTS-macOS.dmg
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PaliTTS-macOS.dmg
+          generate_release_notes: true

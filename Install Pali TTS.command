@@ -3,6 +3,9 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Keep the Terminal window open on failure so the error can be read
+trap 'echo ""; echo "Installation FAILED (see the message above)."; read -rp "Press Enter to close this window..." _' ERR
+
 echo "=== Pali TTS - macOS Installer ==="
 echo ""
 
@@ -18,36 +21,65 @@ echo ""
 if [ "$scope" = "2" ]; then
     INSTALL_DIR="/Library/Scripts/PaliTTS"
     SERVICES_BASE="/Library/Services"
+    SUDO="sudo"
     echo "Installing for all users (will ask for password)..."
 else
     INSTALL_DIR="$HOME/Library/Scripts/PaliTTS"
     SERVICES_BASE="$HOME/Library/Services"
+    SUDO=""
     echo "Installing for current user..."
 fi
 echo ""
 
-# ── 1. Locate python3 ────────────────────────────────────────────────────────
+# ── 1. Locate a python3 that has Tkinter (needed for the GUI window) ─────────
+# python.org builds bundle Tk; Homebrew's python3 only has it after
+# `brew install python-tk`; Apple's /usr/bin/python3 is a stub that pops up
+# a Command Line Tools install dialog unless the tools are installed.
 PYTHON3=""
+SAW_HOMEBREW=""
 for candidate in \
-    "$(which python3 2>/dev/null)" \
-    /opt/homebrew/bin/python3 \
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
     /usr/local/bin/python3 \
+    /opt/homebrew/bin/python3 \
+    "$(command -v python3 2>/dev/null || true)" \
     /usr/bin/python3; do
-    if [ -x "$candidate" ]; then
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    if [ "$candidate" = "/usr/bin/python3" ] && ! xcode-select -p >/dev/null 2>&1; then
+        continue
+    fi
+    case "$candidate" in /opt/homebrew/*|/usr/local/Cellar/*) SAW_HOMEBREW=1 ;; esac
+    if "$candidate" -c 'import sys, tkinter; tkinter.Tcl(); sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
         PYTHON3="$candidate"
         break
     fi
 done
 
 if [ -z "$PYTHON3" ]; then
-    echo "Error: python3 not found. Please install Python 3 first."
-    exit 1
+    echo "Error: no usable Python 3 (3.8+ with Tkinter) was found."
+    echo ""
+    echo "Fix ONE of the following, then run this installer again:"
+    echo "  - Install Python from https://www.python.org/downloads/macos/ (recommended)"
+    if [ -n "$SAW_HOMEBREW" ]; then
+        echo "  - Or, for Homebrew Python, run in Terminal:  brew install python-tk"
+    fi
+    false
 fi
-echo "Python: $PYTHON3"
+echo "Python: $PYTHON3 ($("$PYTHON3" -c 'import platform; print(platform.python_version())'))"
 
-# ── 2. Install Python packages ───────────────────────────────────────────────
-echo "Installing edge-tts..."
-"$PYTHON3" -m pip install --quiet edge-tts
+# ── 2. Create a private virtual environment and install packages ─────────────
+# Installing into the system/Homebrew Python is blocked by PEP 668
+# ("externally-managed-environment"), so packages go into our own venv.
+VENV="$INSTALL_DIR/venv"
+VENV_PY="$VENV/bin/python3"
+echo "Creating Python environment in $VENV ..."
+$SUDO mkdir -p "$INSTALL_DIR"
+$SUDO rm -rf "$VENV"
+$SUDO "$PYTHON3" -m venv "$VENV"
+echo "Installing edge-tts (needs internet)..."
+$SUDO "$VENV_PY" -m pip install --quiet --disable-pip-version-check edge-tts certifi
+"$VENV_PY" -c 'import edge_tts, certifi, tkinter' # sanity check
+# python.org builds ship without CA certificates for urllib; use certifi's
+CERT_FILE="$("$VENV_PY" -c 'import certifi; print(certifi.where())')"
 echo "Done."
 echo ""
 
@@ -64,7 +96,12 @@ FINAL_WRAPPER="$INSTALL_DIR/run.sh"
 cat > "$WRAPPER" << WRAPPER_EOF
 #!/bin/bash
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
-"$PYTHON3" "$INSTALL_DIR/pali_tts.py"
+export SSL_CERT_FILE="$CERT_FILE"
+if ! "$VENV_PY" -c 'import edge_tts' >/dev/null 2>&1; then
+    osascript -e 'display alert "Pali TTS" message "The Python environment is broken (Python was probably upgraded or removed). Please run the Pali TTS installer again."'
+    exit 1
+fi
+"$VENV_PY" "$INSTALL_DIR/pali_tts.py"
 WRAPPER_EOF
 chmod +x "$WRAPPER"
 
@@ -217,6 +254,7 @@ done
 # ── 6. Copy staged files to final location ────────────────────────────────────
 if [ "$scope" = "2" ]; then
     sudo mkdir -p "$INSTALL_DIR" "$SERVICES_BASE"
+    sudo rm -rf "$SERVICES_BASE/Read Pali Aloud.workflow"
     sudo cp -r "$STAGE_SCRIPTS/." "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/run.sh"
     sudo chmod -R a+rX "$INSTALL_DIR"
@@ -238,11 +276,6 @@ echo "=== Done! ==="
 echo ""
 echo "Select any Pali text -> right-click -> Services -> Read Pali Aloud"
 echo "A small window will appear to choose speed and download option."
-if [ "$scope" = "2" ]; then
-    echo ""
-    echo "Note: each Mac user account needs Python + edge-tts installed to use this."
-    echo "Other users can run 'pip install edge-tts' from their own Terminal."
-fi
 echo ""
 echo "If the service does not appear yet, log out and back in."
 

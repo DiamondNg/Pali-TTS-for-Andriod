@@ -3,7 +3,9 @@ Pali TTS — macOS
 
 REQUIREMENTS
   • macOS 10.15 or later
-  • Python 3 (https://www.python.org  or  brew install python)
+  • Python 3.8+ with Tkinter. Easiest: the installer from
+    https://www.python.org/downloads/macos/
+    (Homebrew Python also works, but needs:  brew install python-tk)
   • Internet connection (used for transliteration + TTS)
 
 NETWORK DOMAINS TO WHITELIST (if on a filtered network)
@@ -11,8 +13,13 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Double-click "Install Pali TTS.command"
+  1. Open PaliTTS-macOS.dmg, then double-click "Install Pali TTS.command"
      A Terminal window opens and runs the installer automatically.
+     If macOS says it "cannot verify" the file (it is not Apple-signed):
+     click Done, then System Settings → Privacy & Security → scroll down
+     → "Open Anyway" for "Install Pali TTS.command".
+     The installer creates its own Python environment in
+     ~/Library/Scripts/PaliTTS/venv (no system-wide pip install).
   2. When finished it says "Done!" — close the Terminal window.
   3. If the right-click menu item does not appear immediately,
      log out and back in (or restart).
@@ -32,6 +39,8 @@ UNINSTALL
     rm -rf ~/Library/Scripts/PaliTTS
 
 TROUBLESHOOTING
+  • "Python environment is broken" — Python was upgraded/removed;
+    run the installer again.
   • "No Pali text detected" — the tool filters out English and
     section numbers; make sure the selection contains Pali words.
   • "Transliteration failed" — check internet; the aksharamukha
