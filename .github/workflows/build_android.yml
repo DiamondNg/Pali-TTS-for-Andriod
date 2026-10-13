@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['android/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Buildozer downloads
+        uses: actions/cache@v4
+        with:
+          path: android/.buildozer
+          key: buildozer-${{ hashFiles('android/buildozer.spec') }}
+          restore-keys: buildozer-
+
+      - name: Build APK
+        run: |
+          docker run --rm \
+            -v $GITHUB_WORKSPACE/android:/builddir \
+            -w /builddir \
+            python:3.11-bookworm \
+            bash -c "
+              set -e
+              apt-get update -qq
+              apt-get install -y --no-install-recommends \
+                git zip unzip openjdk-17-jdk-headless \
+                autoconf libtool pkg-config \
+                zlib1g-dev libncurses-dev \
+                libssl-dev libffi-dev cmake
+              pip install --quiet buildozer==1.5.0 cython==0.29.36
+              export BUILDOZER_WARN_ON_ROOT=0
+              buildozer android debug
+            "
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaliTTS-android
+          path: android/bin/*.apk
+          retention-days: 30

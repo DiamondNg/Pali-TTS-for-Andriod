@@ -1,0 +1,23 @@
+# macOS system files
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Android / Buildozer build output
+.buildozer/
+android/bin/
+bin/
+
+# Built installers / packages (regenerate from source)
+*.dmg
+*.zip
+
+# Backups
+*.bak
+
+# Test audio outputs — DELETE these two lines if you want to keep sample audio in the repo
+*.wav
+*.mp3
