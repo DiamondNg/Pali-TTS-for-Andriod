@@ -44,7 +44,9 @@ jobs:
           test -f "$D/pali_tts.py"
           test -x "$D/run.sh"
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
-          "$D/venv/bin/python3" -c 'import edge_tts, tkinter; from aksharamukha import transliterate; print(transliterate.process("IASTPali", "Kannada", "evaṃ me sutaṃ", nativize=True))'
+          "$D/venv/bin/python3" -c 'import edge_tts, tkinter; print("venv OK")'
+          # Offline transliteration must work in CI (the app silently falls back otherwise)
+          (cd "$D" && venv/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
           cat "$D/run.sh"
 
       - name: Upload DMG

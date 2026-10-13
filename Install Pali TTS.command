@@ -77,7 +77,11 @@ $SUDO rm -rf "$VENV"
 $SUDO "$PYTHON3" -m venv "$VENV"
 echo "Installing edge-tts and aksharamukha (needs internet, may take a minute)..."
 $SUDO "$VENV_PY" -m pip install --quiet --disable-pip-version-check edge-tts aksharamukha certifi
-"$VENV_PY" -c 'import edge_tts, certifi, tkinter; from aksharamukha import transliterate' # sanity check
+"$VENV_PY" -c 'import edge_tts, certifi, tkinter' # sanity check
+# Offline Pali->Kannada conversion is optional: the app falls back to the online API
+if ! (cd "$SCRIPT_DIR" && "$VENV_PY" -c 'import sys; sys.argv = ["x"]; import pali_tts; pali_tts._to_kannada_local("evaṃ")') >/dev/null 2>&1; then
+    echo "Note: offline script conversion unavailable; the online service will be used."
+fi
 # python.org builds ship without CA certificates for urllib; use certifi's
 CERT_FILE="$("$VENV_PY" -c 'import certifi; print(certifi.where())')"
 echo "Done."

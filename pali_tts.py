@@ -97,7 +97,12 @@ def to_kannada(text):
     return kannada
 
 def _to_kannada_local(text):
-    # Offline, via the aksharamukha package (installed by the installer)
+    # Offline, via the aksharamukha package (installed by the installer).
+    # aksharamukha 2.3 does an unused `from ast import Str`, which
+    # Python 3.14 removed; provide a stand-in so the import succeeds.
+    import ast
+    if not hasattr(ast, "Str"):
+        ast.Str = str
     from aksharamukha import transliterate
     return transliterate.process("IASTPali", "Kannada", text, nativize=True)
 
