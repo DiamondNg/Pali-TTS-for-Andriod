@@ -4,6 +4,7 @@ import re
 import subprocess
 import tempfile
 import shutil
+import signal
 import threading
 import platform
 from datetime import datetime
@@ -28,11 +29,19 @@ ENGLISH_MARKERS = {
 }
 
 SPEEDS = [
-    ("Slow  0.75x",  "-25%"),
-    ("Normal  1x",   "+0%"),
-    ("Fast  1.5x",   "+50%"),
-    ("2x",           "+100%"),
+    ("0.25x", "-75%"),
+    ("0.5x",  "-50%"),
+    ("0.75x", "-25%"),
+    ("1x",    "+0%"),
+    ("1.25x", "+25%"),
+    ("1.5x",  "+50%"),
+    ("1.75x", "+75%"),
 ]
+DEFAULT_SPEED = 3  # 1x
+
+PLAY_TEXT   = "\u25B6  Play"
+RESUME_TEXT = "\u25B6  Resume"
+PAUSE_TEXT  = "\u23F8  Pause"
 
 VOICES = [
     ("Male",   "kn-IN-GaganNeural"),
@@ -107,27 +116,23 @@ def generate_audio(kannada_text, output_path, rate, voice):
     asyncio.run(_generate(kannada_text, output_path, rate, voice))
 
 
-# ── Audio playback ────────────────────────────────────────────────────────────
-def play_and_cleanup(path):
-    if IS_MAC:
-        subprocess.run(["afplay", path])
-    elif IS_WINDOWS:
-        from playsound import playsound
-        playsound(path)
-    try:
-        os.unlink(path)
-    except Exception:
-        pass
-
-
 # ── GUI ───────────────────────────────────────────────────────────────────────
 class PaliTTSWindow:
     def __init__(self, root, initial_text=""):
         self.root = root
 
+        self.proc = None          # running afplay process (macOS)
+        self.paused = False
+        self.busy = False         # transliterating / generating audio
+        self.audio_path = None    # last generated audio, reused when settings match
+        self.audio_key = None     # (text, rate, voice) of audio_path
+        self.play_key = None      # (text, rate, voice) of what is playing/paused
+        self.saved_key = None     # (text, rate, voice) last saved to Downloads
+
         root.title("Pali TTS")
         root.resizable(False, False)
         root.configure(padx=20, pady=15)
+        root.protocol("WM_DELETE_WINDOW", self._close)
 
         # ── Text area ─────────────────────────────────────────────────────────
         ttk.Label(root, text="Pali text  (paste or edit):").pack(anchor="w")
@@ -143,19 +148,19 @@ class PaliTTSWindow:
             self.text_box.insert("1.0", initial_text)
 
         # ── Speed ─────────────────────────────────────────────────────────────
-        self.speed_label = ttk.Label(root, text="Speed:  Normal  1x",
-                                     font=("", 11, "bold"))
+        self.speed_label = ttk.Label(root, text="", font=("", 11, "bold"))
         self.speed_label.pack(anchor="w")
-        self.slider_var = tk.DoubleVar(value=1.0)
-        slider = ttk.Scale(root, from_=0, to=3, orient="horizontal",
-                           variable=self.slider_var, command=self._on_drag,
-                           length=280)
+        self.slider_var = tk.DoubleVar(value=DEFAULT_SPEED)
+        slider = ttk.Scale(root, from_=0, to=len(SPEEDS) - 1,
+                           orient="horizontal", variable=self.slider_var,
+                           command=self._on_drag, length=300)
         slider.pack(fill="x", pady=(4, 0))
         tick_frame = tk.Frame(root)
         tick_frame.pack(fill="x")
         for label, _ in SPEEDS:
-            tk.Label(tick_frame, text=label.split()[0], fg="#666",
+            tk.Label(tick_frame, text=label, fg="#666",
                      font=("", 8)).pack(side="left", expand=True)
+        self._on_drag(None)
 
         # ── Voice ─────────────────────────────────────────────────────────────
         voice_frame = ttk.Frame(root)
@@ -170,13 +175,18 @@ class PaliTTSWindow:
         self.save_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(root, text="Save MP3 to Downloads",
                         variable=self.save_var).pack(anchor="w", pady=(10, 0))
+        ttk.Label(root, text="The MP3 is saved at the speed and voice chosen above.",
+                  foreground="#666", font=("", 9)).pack(anchor="w")
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", pady=(14, 0))
         ttk.Button(btn_frame, text="Close",
-                   command=root.destroy).pack(side="left", expand=True, padx=(0, 6))
-        self.play_btn = ttk.Button(btn_frame, text="Play", command=self._play)
+                   command=self._close).pack(side="left", expand=True, padx=(0, 6))
+        self.stop_btn = ttk.Button(btn_frame, text="⏹  Stop",
+                                   command=self._stop, state="disabled")
+        self.stop_btn.pack(side="left", expand=True, padx=6)
+        self.play_btn = ttk.Button(btn_frame, text=PLAY_TEXT, command=self._toggle)
         self.play_btn.pack(side="right", expand=True, padx=(6, 0))
 
         # ── Status label ──────────────────────────────────────────────────────
@@ -197,94 +207,194 @@ class PaliTTSWindow:
         root.focus_force()
         self.text_box.focus_set()
 
+    # ── Settings ──────────────────────────────────────────────────────────────
+    def _speed_index(self):
+        return max(0, min(len(SPEEDS) - 1, round(self.slider_var.get())))
+
     def _on_drag(self, _value):
-        idx = max(0, min(3, round(self.slider_var.get())))
+        idx = self._speed_index()
         self.slider_var.set(idx)
-        label, _ = SPEEDS[idx]
-        self.speed_label.config(text="Speed:  " + label)
+        self.speed_label.config(text="Speed:  " + SPEEDS[idx][0])
 
-    def _set_status(self, msg):
-        try:
-            self.root.after(0, lambda: self.status_var.set(msg))
-        except tk.TclError:
-            pass
-
-    def _set_play_enabled(self, enabled):
-        try:
-            state = "normal" if enabled else "disabled"
-            self.root.after(0, lambda: self.play_btn.config(state=state))
-        except tk.TclError:
-            pass
-
-    def _play(self):
+    def _current_key(self):
+        """(text, rate, voice) for the current settings, or None if no Pali text."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
             self.status_var.set("Please paste some Pali text first.")
-            return
-
-        text = filter_pali_lines(text_content)
-        text = " ".join(text.split())
+            return None
+        text = " ".join(filter_pali_lines(text_content).split())
         if not text:
             self.status_var.set("No Pali text detected.")
+            return None
+        return (text, SPEEDS[self._speed_index()][1], self.voice_var.get())
+
+    # ── Play / Pause / Stop ───────────────────────────────────────────────────
+    def _is_playing(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def _toggle(self):
+        if self.busy:
             return
+        if self._is_playing():
+            if not self.paused:
+                self._pause()
+                return
+            # Paused: resume, unless text/speed/voice changed meanwhile
+            if self._current_key() == self.play_key:
+                self._resume()
+                return
+            self._stop()
+        self._start()
 
-        idx = max(0, min(3, round(self.slider_var.get())))
-        _, rate = SPEEDS[idx]
-        voice = self.voice_var.get()
-        save  = self.save_var.get()
-
+    def _start(self):
+        key = self._current_key()
+        if key is None:
+            return
+        if key == self.audio_key and self.audio_path and os.path.exists(self.audio_path):
+            self._begin_playback(key)
+            return
+        self.busy = True
         self.play_btn.config(state="disabled")
         self.status_var.set("Connecting...")
+        threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
-        t = threading.Thread(target=self._run_pipeline,
-                             args=(text, rate, voice, save))
-        t.daemon = False  # keep process alive until audio finishes
-        t.start()
-
-    def _run_pipeline(self, text, rate, voice, save):
+    def _generate(self, key):
+        text, rate, voice = key
         try:
             self._set_status("Transliterating...")
             kannada = to_kannada(text)
         except Exception:
-            self._set_status("Transliteration failed — check internet.")
-            self._set_play_enabled(True)
+            self._after(self._generation_failed, "Transliteration failed — check internet.")
             return
 
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
         os.close(tmp_fd)
-
         try:
             self._set_status("Generating audio...")
             generate_audio(kannada, tmp_path, rate, voice)
         except Exception:
-            self._set_status("Audio generation failed — check internet.")
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-            self._set_play_enabled(True)
+            _unlink(tmp_path)
+            self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
+        self._after(self._generated, key, tmp_path)
 
-        if save:
-            words = text.split()[:4]
-            base = "_".join(words)
-            base = re.sub(r'[/:\\*?"<>|,;.\(\)]', "", base).strip("_") or "pali_audio"
-            dl = os.path.join(os.path.expanduser("~"), "Downloads")
-            mp3_name = base + ".mp3"
+    def _generation_failed(self, msg):
+        self.busy = False
+        self.status_var.set(msg)
+        self.play_btn.config(state="normal")
+
+    def _generated(self, key, path):
+        self.busy = False
+        self.play_btn.config(state="normal")
+        if self.audio_path and self.audio_path != path:
+            _unlink(self.audio_path)
+        self.audio_path, self.audio_key = path, key
+        self._begin_playback(key)
+
+    def _begin_playback(self, key):
+        saved_msg = self._save_if_requested(key)
+        self.play_key = key
+        self.paused = False
+        self.status_var.set(saved_msg or "Playing...")
+        if IS_MAC:
+            self.proc = subprocess.Popen(["afplay", self.audio_path])
+            self.play_btn.config(text=PAUSE_TEXT)
+            self.stop_btn.config(state="normal")
+            self._poll(self.proc)
+        elif IS_WINDOWS:
+            # playsound cannot pause; block the button until playback ends
+            self.play_btn.config(state="disabled")
+            path = self.audio_path
+
+            def run():
+                from playsound import playsound
+                playsound(path)
+                self._after(self._finished_windows)
+            threading.Thread(target=run, daemon=True).start()
+
+    def _finished_windows(self):
+        self.play_btn.config(state="normal")
+        self.status_var.set("Done.")
+
+    def _poll(self, proc):
+        if proc is not self.proc:
+            return  # stopped or replaced
+        if proc.poll() is None:
+            self.root.after(200, self._poll, proc)
+            return
+        self.proc = None
+        self.paused = False
+        self.play_btn.config(text=PLAY_TEXT)
+        self.stop_btn.config(state="disabled")
+        if self.status_var.get() == "Playing...":
+            self.status_var.set("Done.")
+
+    def _pause(self):
+        os.kill(self.proc.pid, signal.SIGSTOP)
+        self.paused = True
+        self.play_btn.config(text=RESUME_TEXT)
+        self.status_var.set("Paused.")
+
+    def _resume(self):
+        self._save_if_requested(self.play_key)
+        os.kill(self.proc.pid, signal.SIGCONT)
+        self.paused = False
+        self.play_btn.config(text=PAUSE_TEXT)
+        self.status_var.set("Playing...")
+
+    def _stop(self):
+        proc, self.proc = self.proc, None
+        if proc is not None and proc.poll() is None:
+            proc.kill()  # SIGKILL also ends a paused (SIGSTOPped) process
+            proc.wait()
+        self.paused = False
+        self.play_btn.config(text=PLAY_TEXT)
+        self.stop_btn.config(state="disabled")
+        if not self.busy:
+            self.status_var.set("Stopped.")
+
+    def _save_if_requested(self, key):
+        if not self.save_var.get() or key == self.saved_key:
+            return None
+        words = key[0].split()[:4]
+        base = "_".join(words)
+        base = re.sub(r'[/:\\*?"<>|,;.\(\)]', "", base).strip("_") or "pali_audio"
+        base += "_" + dict((r, l) for l, r in SPEEDS)[key[1]]
+        dl = os.path.join(os.path.expanduser("~"), "Downloads")
+        mp3_name = base + ".mp3"
+        mp3_path = os.path.join(dl, mp3_name)
+        if os.path.exists(mp3_path):
+            mp3_name = base + "_" + datetime.now().strftime("%H%M%S") + ".mp3"
             mp3_path = os.path.join(dl, mp3_name)
-            if os.path.exists(mp3_path):
-                mp3_name = base + "_" + datetime.now().strftime("%H%M%S") + ".mp3"
-                mp3_path = os.path.join(dl, mp3_name)
-            shutil.copy(tmp_path, mp3_path)
-            self._set_status("Saved: " + mp3_name)
-        else:
-            self._set_status("Playing...")
+        try:
+            shutil.copy(self.audio_path, mp3_path)
+        except OSError:
+            return "Could not save MP3 to Downloads."
+        self.saved_key = key
+        return "Saved: " + mp3_name
 
-        play_and_cleanup(tmp_path)
+    def _close(self):
+        self._stop()
+        if self.audio_path:
+            _unlink(self.audio_path)
+        self.root.destroy()
 
-        if not save:
-            self._set_status("Done.")
-        self._set_play_enabled(True)
+    # ── Thread helpers ────────────────────────────────────────────────────────
+    def _after(self, fn, *args):
+        try:
+            self.root.after(0, fn, *args)
+        except (tk.TclError, RuntimeError):
+            pass  # window already closed
+
+    def _set_status(self, msg):
+        self._after(self.status_var.set, msg)
+
+
+def _unlink(path):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 def show_gui(initial_text=""):

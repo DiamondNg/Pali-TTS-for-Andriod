@@ -28,10 +28,15 @@ HOW TO USE
   1. Select any Pali text in any application (browser, PDF, Word, etc.)
   2. Right-click → Services → "Read Pali Aloud"
   3. A small window appears:
-       - Drag the slider to choose speed (Slow / Normal / Fast / 2×)
-       - Tick "Save MP3 to Downloads" if you want a file
-       - Click ▶ Play  (or Cancel to abort)
-  4. A notification confirms playback or the saved filename.
+       - Drag the slider to choose speed (0.25x to 1.75x)
+       - Choose Male or Female voice
+       - Tick "Save MP3 to Downloads" to keep a file; it is saved at
+         the chosen speed (the speed is added to the file name)
+       - Click ▶ Play. While playing the button becomes ⏸ Pause;
+         click it to pause, and ▶ Resume to continue from that point.
+         ⏹ Stop ends playback. If you change the text, speed or voice
+         while paused, Resume starts again with the new settings.
+       - Closing the window stops playback.
 
 UNINSTALL
   Run in Terminal:
