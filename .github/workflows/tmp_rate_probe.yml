@@ -1,0 +1,21 @@
+name: tmp rate probe
+on: push
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - run: |
+          python3 -m venv v && v/bin/pip install -q edge-tts
+          cat > t.py <<'PY'
+          import asyncio, edge_tts, subprocess
+          async def g(r):
+              p=f"o{r}.mp3"
+              await edge_tts.Communicate("ಏವಂ ಮೇ ಸುತಂ ಏಕಂ ಸಮಯಂ ಭಗವಾ ಸಾವತ್ಥಿಯಂ ವಿಹರತಿ ಜೇತವನೇ ಅನಾಥಪಿಣ್ಡಿಕಸ್ಸ ಆರಾಮೇ","kn-IN-GaganNeural",rate=r).save(p)
+              return subprocess.run(["afinfo",p],capture_output=True,text=True).stdout
+          for r in ["-90%","-75%","-60%","-50%","-25%","+0%","+75%"]:
+              try:
+                  out=asyncio.run(g(r)); print(r,[l for l in out.splitlines() if "duration" in l])
+              except Exception as e: print(r,"ERR",repr(e))
+          PY
+          v/bin/python t.py
+          afplay -h 2>&1 | head -30 || true
