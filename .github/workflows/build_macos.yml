@@ -132,6 +132,9 @@ jobs:
           osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' || echo "could not switch to dark mode"
           printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/dark.log 2>&1 &
           check dark 8
+          # The way the right-click Services menu runs it (Automator workflow)
+          automator -i 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' "$HOME/Library/Services/Read Pali Aloud.workflow" > shots/service.log 2>&1 &
+          check service 12
           tail -n +1 shots/*.log
 
       - name: Upload screenshots
