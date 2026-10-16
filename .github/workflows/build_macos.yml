@@ -122,30 +122,17 @@ jobs:
         run: |
           D="$HOME/Library/Scripts/PaliTTS"
           mkdir -p shots
-          shot() { sleep "$2"; screencapture -x "shots/$1.png"; pkill -f pali_tts.py || true; sleep 1; }
-          screencapture -x shots/0-before.png
-          printf 'Evaṃ me sutaṃ' | bash "$D/run.sh" > shots/direct.log 2>&1 &
-          shot 1-direct 8
-          # The way the right-click Services menu runs it
-          automator -i 'Evaṃ me sutaṃ' "$HOME/Library/Services/Read Pali Aloud.workflow" > shots/automator.log 2>&1 &
-          shot 2-automator 12
+          sw_vers
+          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); print("Tk patchlevel", r.call("info", "patchlevel"), r.call("tk", "windowingsystem")); r.destroy()'
+          python3 -m venv "$RUNNER_TEMP/pv"
+          "$RUNNER_TEMP/pv/bin/pip" install -q pillow pyobjc-framework-Quartz pyobjc-framework-Vision
+          check() { sleep "$2"; "$RUNNER_TEMP/pv/bin/python" .github/scripts/gui_check.py "$1"; pkill -f pali_tts.py || true; sleep 1; }
+          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/light.log 2>&1 &
+          check light 8
           osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' || echo "could not switch to dark mode"
-          printf 'Evaṃ me sutaṃ' | bash "$D/run.sh" > shots/dark.log 2>&1 &
-          shot 3-dark 8
+          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/dark.log 2>&1 &
+          check dark 8
           tail -n +1 shots/*.log
-          python3 -m venv "$RUNNER_TEMP/pv" && "$RUNNER_TEMP/pv/bin/pip" install -q pillow
-          "$RUNNER_TEMP/pv/bin/python" - <<'PY'
-          from PIL import Image, ImageChops
-          base = Image.open("shots/0-before.png").convert("RGB")
-          for name in ["1-direct", "2-automator", "3-dark"]:
-              im = Image.open(f"shots/{name}.png").convert("RGB")
-              box = ImageChops.difference(base, im).getbbox()
-              if not box:
-                  print(name, "NO WINDOW"); continue
-              crop = im.crop(box)
-              colors = len(set(crop.getdata()))
-              print(f"{name}: changed box {box}, size {crop.size}, distinct colours {colors}")
-          PY
 
       - name: Upload screenshots
         if: always()
