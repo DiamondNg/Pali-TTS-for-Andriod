@@ -40,7 +40,7 @@ This repo holds **four platform variants** of the same idea, all driven by Pytho
 ## Building
 
 - **Android:** push to GitHub and let `.github/workflows/build_android.yml` build the APK, or build locally with Buildozer (Linux/WSL2) — see `android/README_Android.txt`.
-- **macOS:** run `install_pali_service.sh` — see `README_Mac.txt`.
+- **macOS:** GitHub Actions (`.github/workflows/build_macos.yml`) builds `PaliTTS-macOS.dmg` with a bundled Python for Apple Silicon and Intel; pushing a `v*` tag publishes it as a Release. Users run `Install Pali TTS.command` from the DMG — see `README_Mac.txt`.
 - **Windows:** run `windows/install_pali_windows.bat` — see `windows/README_Windows.txt`.
 - **iOS:** follow `ios/README_iOS_Shortcut.txt`.
 

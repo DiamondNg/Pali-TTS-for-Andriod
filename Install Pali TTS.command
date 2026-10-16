@@ -31,59 +31,33 @@ else
 fi
 echo ""
 
-# ── 1. Locate a python3 that has Tkinter (needed for the GUI window) ─────────
-# python.org builds bundle Tk; Homebrew's python3 only has it after
-# `brew install python-tk`; Apple's /usr/bin/python3 is a stub that pops up
-# a Command Line Tools install dialog unless the tools are installed.
-PYTHON3=""
-SAW_HOMEBREW=""
-for candidate in \
-    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
-    /usr/local/bin/python3 \
-    /opt/homebrew/bin/python3 \
-    "$(command -v python3 2>/dev/null || true)" \
-    /usr/bin/python3; do
-    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
-    if [ "$candidate" = "/usr/bin/python3" ] && ! xcode-select -p >/dev/null 2>&1; then
-        continue
-    fi
-    case "$candidate" in /opt/homebrew/*|/usr/local/Cellar/*) SAW_HOMEBREW=1 ;; esac
-    if "$candidate" -c 'import sys, tkinter; tkinter.Tcl(); sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
-        PYTHON3="$candidate"
-        break
-    fi
-done
-
-if [ -z "$PYTHON3" ]; then
-    echo "Error: no usable Python 3 (3.8+ with Tkinter) was found."
-    echo ""
-    echo "Fix ONE of the following, then run this installer again:"
-    echo "  - Install Python from https://www.python.org/downloads/macos/ (recommended)"
-    if [ -n "$SAW_HOMEBREW" ]; then
-        echo "  - Or, for Homebrew Python, run in Terminal:  brew install python-tk"
-    fi
+# ── 1. Pick the bundled Python runtime for this Mac's chip ──────────────────
+# The DMG carries a self-contained Python (with Tkinter and all packages) for
+# Apple Silicon and for Intel, so nothing has to be installed beforehand.
+# hw.optional.arm64 is 1 on Apple Silicon even when Terminal runs under Rosetta.
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+    ARCH="arm64"
+else
+    ARCH="x86_64"
+fi
+BUNDLED="$SCRIPT_DIR/.runtime/$ARCH"
+if [ ! -x "$BUNDLED/bin/python3" ]; then
+    echo "Error: the bundled Python for $ARCH Macs is missing from this installer."
+    echo "Please download PaliTTS-macOS.dmg again."
     false
 fi
-echo "Python: $PYTHON3 ($("$PYTHON3" -c 'import platform; print(platform.python_version())'))"
 
-# ── 2. Create a private virtual environment and install packages ─────────────
-# Installing into the system/Homebrew Python is blocked by PEP 668
-# ("externally-managed-environment"), so packages go into our own venv.
-VENV="$INSTALL_DIR/venv"
-VENV_PY="$VENV/bin/python3"
-echo "Creating Python environment in $VENV ..."
+# ── 2. Copy the runtime into place ───────────────────────────────────────────
+RUNTIME="$INSTALL_DIR/runtime"
+PY="$RUNTIME/bin/python3"
+echo "Copying Python runtime ($ARCH) to $RUNTIME ..."
 $SUDO mkdir -p "$INSTALL_DIR"
-$SUDO rm -rf "$VENV"
-$SUDO "$PYTHON3" -m venv "$VENV"
-echo "Installing edge-tts and aksharamukha (needs internet, may take a minute)..."
-$SUDO "$VENV_PY" -m pip install --quiet --disable-pip-version-check edge-tts aksharamukha certifi
-"$VENV_PY" -c 'import edge_tts, certifi, tkinter' # sanity check
-# Offline Pali->Kannada conversion is optional: the app falls back to the online API
-if ! (cd "$SCRIPT_DIR" && "$VENV_PY" -c 'import sys; sys.argv = ["x"]; import pali_tts; pali_tts._to_kannada_local("evaṃ")') >/dev/null 2>&1; then
-    echo "Note: offline script conversion unavailable; the online service will be used."
-fi
-# python.org builds ship without CA certificates for urllib; use certifi's
-CERT_FILE="$("$VENV_PY" -c 'import certifi; print(certifi.where())')"
+$SUDO rm -rf "$RUNTIME" "$INSTALL_DIR/venv"   # venv: left over from older versions
+$SUDO ditto "$BUNDLED" "$RUNTIME"
+# Downloaded files are quarantined by macOS; clear that so Python can start
+$SUDO xattr -dr com.apple.quarantine "$RUNTIME" 2>/dev/null || true
+"$PY" -c 'import edge_tts, certifi, tkinter' # sanity check
+CERT_FILE="$("$PY" -c 'import certifi; print(certifi.where())')"
 echo "Done."
 echo ""
 
@@ -101,11 +75,11 @@ cat > "$WRAPPER" << WRAPPER_EOF
 #!/bin/bash
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
 export SSL_CERT_FILE="$CERT_FILE"
-if ! "$VENV_PY" -c 'import edge_tts' >/dev/null 2>&1; then
-    osascript -e 'display alert "Pali TTS" message "The Python environment is broken (Python was probably upgraded or removed). Please run the Pali TTS installer again."'
+if ! "$PY" -c 'import edge_tts' >/dev/null 2>&1; then
+    osascript -e 'display alert "Pali TTS" message "The Python environment is broken. Please run the Pali TTS installer again."'
     exit 1
 fi
-"$VENV_PY" "$INSTALL_DIR/pali_tts.py"
+"$PY" "$INSTALL_DIR/pali_tts.py"
 WRAPPER_EOF
 chmod +x "$WRAPPER"
 

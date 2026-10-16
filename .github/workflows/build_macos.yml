@@ -2,6 +2,8 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]   # creating a Release on the GitHub website builds + attaches the DMG
   push:
     tags: ['v*']
     branches: ['**']
@@ -9,6 +11,7 @@ on:
       - 'Install Pali TTS.command'
       - 'pali_tts.py'
       - 'README_Mac.txt'
+      - 'requirements-macos.txt'
       - '.github/workflows/build_macos.yml'
 
 permissions:
@@ -22,6 +25,67 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.21"
+
+      # Self-contained Python (python-build-standalone, includes Tkinter) for
+      # both chip types, with all packages pre-installed: users install nothing.
+      - name: Build bundled Python runtimes
+        env:
+          PY_VERSION: "3.13"
+        run: |
+          set -e
+          export UV_PYTHON_INSTALL_DIR="$RUNNER_TEMP/uvpy"
+          uv python install "cpython-${PY_VERSION}-macos-aarch64-none" "cpython-${PY_VERSION}-macos-x86_64-none"
+          ls "$UV_PYTHON_INSTALL_DIR"
+          mkdir -p runtime
+          ditto "$(ls -d "$UV_PYTHON_INSTALL_DIR"/cpython-"$PY_VERSION".*-macos-aarch64-none | head -1)" runtime/arm64
+          ditto "$(ls -d "$UV_PYTHON_INSTALL_DIR"/cpython-"$PY_VERSION".*-macos-x86_64-none | head -1)" runtime/x86_64
+          PIP_PY=runtime/arm64/bin/python3
+          "$PIP_PY" -m pip --version || "$PIP_PY" -m ensurepip
+          # Wheels no newer than the bundled Python's own minimum (Intel 10.15, Apple Silicon 11)
+          for pair in "arm64 macosx_11_0_arm64" "x86_64 macosx_10_13_x86_64"; do
+            set -- $pair
+            SITE=$(ls -d runtime/"$1"/lib/python3.*/site-packages)
+            "$PIP_PY" -m pip install --quiet --disable-pip-version-check --break-system-packages \
+              --target "$SITE" --upgrade --only-binary=:all: --platform "$2" \
+              --python-version "$PY_VERSION" --implementation cp \
+              -r requirements-macos.txt
+          done
+          # Slim down: no pip, tests, IDLE, caches
+          for d in runtime/*; do
+            L=$(ls -d "$d"/lib/python3.*)
+            rm -rf "$L"/EXTERNALLY-MANAGED "$L"/test "$L"/idlelib "$L"/ensurepip "$L"/turtledemo \
+                   "$L"/site-packages/pip "$L"/site-packages/pip-* "$L"/site-packages/bin
+            find "$d" -name __pycache__ -type d -prune -exec rm -rf {} +
+            # Developer-only files: headers, static libs, build config
+            rm -rf "$d"/include "$d"/share "$d"/lib/pkgconfig "$d"/bin/python3*-config \
+                   "$L"/config-3.*-darwin
+            find "$d" -name '*.a' -delete
+          done
+          du -sh runtime/*
+          du -sh runtime/arm64/lib/* runtime/arm64/lib/python3.*/site-packages/* | sort -h | tail -12
+
+      - name: Report minimum macOS of bundled binaries
+        run: |
+          for arch in arm64 x86_64; do
+            find runtime/$arch -type f \( -name '*.so' -o -name '*.dylib' -o -path '*/bin/python3.*' \) |
+            while read -r f; do
+              v=$(otool -l "$f" 2>/dev/null |
+                  awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&/^ *(minos|version) /{print $2; f=0}' | head -1)
+              echo "$v ${f#runtime/$arch/}"
+            done | grep -v '^ ' | sort -V > "min-$arch.txt"
+            echo "$arch: requires macOS $(tail -1 "min-$arch.txt" | cut -d' ' -f1) or later; highest:"
+            tail -5 "min-$arch.txt"
+          done
+
+      - name: Test Intel runtime under Rosetta
+        run: |
+          arch -x86_64 runtime/x86_64/bin/python3 -c 'import platform, edge_tts, tkinter, certifi; tkinter.Tcl(); print(platform.machine(), platform.python_version(), "OK")'
+          PYTHONPATH=. arch -x86_64 runtime/x86_64/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))'
+
       - name: Build DMG
         run: |
           set -e
@@ -30,12 +94,16 @@ jobs:
           cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
           chmod +x "$STAGE/Install Pali TTS.command"
+          ditto runtime "$STAGE/.runtime"
           hdiutil create -volname "Pali TTS" -srcfolder "$STAGE" \
-            -ov -format UDZO PaliTTS-macOS.dmg
+            -ov -format ULFO PaliTTS-macOS.dmg
+          ls -lh PaliTTS-macOS.dmg
 
       - name: Smoke-test the installer from the DMG
         run: |
           set -e
+          # Simulate a downloaded (quarantined) DMG
+          xattr -w com.apple.quarantine "0081;00000000;Safari;" PaliTTS-macOS.dmg
           hdiutil attach PaliTTS-macOS.dmg -nobrowse
           # Choose "Just me", then press Enter at the final prompt
           printf '1\n\n' | bash "/Volumes/Pali TTS/Install Pali TTS.command"
@@ -44,10 +112,38 @@ jobs:
           test -f "$D/pali_tts.py"
           test -x "$D/run.sh"
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
-          "$D/venv/bin/python3" -c 'import edge_tts, tkinter; print("venv OK")'
-          # Offline transliteration must work in CI (the app silently falls back otherwise)
-          (cd "$D" && venv/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
+          "$D/runtime/bin/python3" -c 'import edge_tts, tkinter; tkinter.Tcl(); print("runtime OK")'
+          (cd "$D" && runtime/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
+          # The Tk window itself (needs the runner's GUI session)
+          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); r.update(); r.destroy(); print("Tk", tkinter.TkVersion, "window OK")'
           cat "$D/run.sh"
+
+      - name: GUI screenshot test
+        run: |
+          D="$HOME/Library/Scripts/PaliTTS"
+          mkdir -p shots
+          sw_vers
+          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); print("Tk patchlevel", r.call("info", "patchlevel"), r.call("tk", "windowingsystem")); r.destroy()'
+          python3 -m venv "$RUNNER_TEMP/pv"
+          "$RUNNER_TEMP/pv/bin/pip" install -q pillow pyobjc-framework-Quartz pyobjc-framework-Vision
+          check() { sleep "$2"; "$RUNNER_TEMP/pv/bin/python" .github/scripts/gui_check.py "$1"; pkill -f pali_tts.py || true; sleep 1; }
+          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/light.log 2>&1 &
+          check light 8
+          osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' || echo "could not switch to dark mode"
+          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/dark.log 2>&1 &
+          check dark 8
+          # The way the right-click Services menu runs it (Automator workflow)
+          automator -i 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' "$HOME/Library/Services/Read Pali Aloud.workflow" > shots/service.log 2>&1 &
+          check service 12
+          tail -n +1 shots/*.log
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-screenshots
+          path: shots/
+          retention-days: 7
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
