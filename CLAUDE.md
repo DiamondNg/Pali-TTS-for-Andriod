@@ -41,6 +41,20 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - DMG is unsigned: first open needs System Settings → Privacy & Security → Open Anyway.
 - `assets/AppIcon.png` (1024, made from the owner's image, outline square only).
 
+## Next: Windows installer (plan, not started; owner tests on own Windows PC)
+Current `windows/` is v1-era and broken: needs Python + AutoHotkey preinstalled, bat calls
+`pyinstaller` directly, copies a missing `pali_tts.py`, uses Win+P (clashes with Windows'
+display shortcut), `playsound` cannot pause. Proposed:
+- Build on GitHub Actions `windows-latest`: PyInstaller (one-folder) of the shared `pali_tts.py`
+  (v2) + icon (`assets/AppIcon.png` → .ico), then Inno Setup → `PaliTTS-Setup.exe` (Start menu
+  entry "Read Pāli Aloud" with icon, uninstaller, per-user install, no admin). Upload artifact.
+- Ctrl+Alt+P without AutoHotkey: small resident helper started at login (ctypes
+  `RegisterHotKey`), sends Ctrl+C, reads clipboard, opens the window with the text.
+- Playback with pause/resume/position: Windows MCI (`winmm.mciSendStringW` via ctypes) for MP3.
+- English voice on Windows: SAPI (System.Speech) later; first get Pāli working.
+- Unsigned exe: SmartScreen → "More info" → "Run anyway".
+- CI can smoke-test install + screenshot; audio still needs the owner's PC.
+
 ## Environment gotchas (cloud sessions)
 - Microsoft TTS (speech.platform.bing.com) is unreachable from the sandbox and returns 403 to
   GitHub runners: audio can't be tested automatically; ask the owner to test on a Mac.
