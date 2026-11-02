@@ -8,7 +8,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 (so the new chat can continue from it).
 
 ## Status (2026-11-02)
-- v2 work on branch `claude/pensive-archimedes-hdsrmw` (not merged yet).
+- v2 merged (PR #4). v2.1 = ññ test (branch `claude/pensive-archimedes-hdsrmw`, PR #5 pending).
 - PR #1 and #2 merged. macOS is the focus; Windows installer is still broken (copies a missing
   `pali_tts.py` from `windows/`, calls `pyinstaller` directly). Android/iOS untouched.
 - Teacher confirmed the Mac DMG installs and works.
@@ -66,8 +66,11 @@ display shortcut), `playsound` cannot pause. Proposed:
 Done in v2 (needs the teacher to test on a Mac): 2 quotes, 3 speeds, 4 title, 5 .app, 6 Mac
 shortcut, 7 English (selected text only; Mac voices), plus dark mode.
 Still open:
-1. `aññaṁ` sounds like "abbaṁ" (Aksharamukha ಅಞ್ಞಂ; voice mispronounces ಞ್ಞ). Needs an audio A/B
-   of substitutes on a real Mac (Microsoft TTS unreachable from sandbox/CI).
+1. `aññaṁ` sounds like "abbaṁ" (Aksharamukha ಅಞ್ಞಂ; voice mispronounces ಞ್ಞ). v2.1 adds an
+   "ññ test" button: `NYA_VARIANTS` = 1 ಞ್ಞ (old) 2 ನ್ಯ 3 ಞ್ಯ 4 ನ್ನ್ಯ 5 ನ್ಞ 6 ಞ್ಞ್ಯ, read on
+   `NYA_TEST_WORDS` (aññaṃ, paññā, saññā, rañño, kataññū, aññatra), each after "Number N"
+   (Mac `say`); chosen number saved as setting `nya` and applied in `to_kannada`. Waiting for the
+   teacher's pick → then make it the default (and use it on Windows).
 6b. Ctrl+Alt+P on Windows (Windows installer still broken).
 7b. English voice on Windows/Android: use each system's local voices when we get there.
 

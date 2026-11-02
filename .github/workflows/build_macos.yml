@@ -120,6 +120,8 @@ jobs:
           grep -A1 COMMAND_STRING "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
           "$APP/Contents/MacOS/python3" -c 'import sys, edge_tts, tkinter; tkinter.Tcl(); print("runtime OK", sys.prefix)'
           (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("sarīran\"ti aññaṃ"), pali_tts.english_voices()[:5])')
+          # ññ test spellings
+          (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts as p; [print(i + 1, p.to_kannada(p.NYA_TEST_WORDS, nya=i)) for i in range(len(p.NYA_VARIANTS))]')
           # English voice + joining segments (offline, no Microsoft needed)
           cd "$RUNNER_TEMP"
           say -o en.aiff "Thus have I heard."
