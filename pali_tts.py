@@ -122,7 +122,14 @@ def filter_pali_lines(text):
 
 
 # ── Aksharamukha API ──────────────────────────────────────────────────────────
-def to_kannada(text):
+# ññ: Aksharamukha writes ಞ್ಞ, which the Kannada voice says like "bb" (aññaṃ →
+# "abbaṃ"). These spellings can be compared with the "ññ test" button; the one
+# chosen there is used for all text.
+NYA_VARIANTS = ["ಞ್ಞ", "ನ್ಯ", "ಞ್ಯ", "ನ್ನ್ಯ", "ನ್ಞ", "ಞ್ಞ್ಯ"]
+NYA_TEST_WORDS = "aññaṃ, paññā, saññā, rañño, kataññū, aññatra"
+nya_choice = 0  # index into NYA_VARIANTS
+
+def to_kannada(text, nya=None):
     # aksharamukha handles ṃ (dot-below) but not ṁ (dot-above)
     text = clean_pali(text).replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
     try:
@@ -131,7 +138,8 @@ def to_kannada(text):
         kannada = _to_kannada_online(text)
     for ch in [".", ";", "!", "?"]:
         kannada = kannada.replace(ch, "।")
-    return kannada
+    variant = NYA_VARIANTS[nya_choice if nya is None else nya]
+    return kannada.replace(NYA_VARIANTS[0], variant)
 
 def _to_kannada_local(text):
     # Offline, via the aksharamukha package (installed by the installer).
@@ -219,6 +227,34 @@ SAMPLE_RATE = 24000  # = edge-tts output
 def to_wav(src, dst):
     subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16@%d" % SAMPLE_RATE,
                     "-c", "1", src, dst], check=True, capture_output=True, timeout=600)
+
+def build_joined(parts, rate, voice, en_voice, wpm, status=lambda msg: None):
+    """parts: [("kn", kannada_text) or ("en", english_text)] → (wav path, seconds).
+    Kannada parts use Microsoft's voice, English parts the Mac's own voice."""
+    work = tempfile.mkdtemp(prefix="palitts")
+    try:
+        jobs, files = [], []
+        for i, (lang, text) in enumerate(parts):
+            src = os.path.join(work, "%03d.%s" % (i, "mp3" if lang == "kn" else "aiff"))
+            if lang == "kn":
+                jobs.append((text, src))
+            files.append((lang, text, src))
+        if jobs:
+            status("Generating Pāli audio...")
+            generate_audio_many(jobs, rate, voice)
+        status("Generating English audio...")
+        wavs = []
+        for lang, text, src in files:
+            if lang == "en":
+                say_to_file(text, src, wpm, en_voice)
+            wav = src.rsplit(".", 1)[0] + ".wav"
+            to_wav(src, wav)
+            wavs.append(wav)
+        tmp_fd, out = tempfile.mkstemp(suffix=".wav")
+        os.close(tmp_fd)
+        return out, join_wavs(wavs, out)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 def join_wavs(parts, dst, gap=0.4):
     """Concatenate mono 16-bit WAVs with a short silence between them."""
@@ -313,6 +349,10 @@ class PaliTTSWindow:
         mode = settings.get("mode")
         if mode not in [m for _, m in MODES]:
             mode = "pi"
+        global nya_choice
+        nya = settings.get("nya", 0)
+        nya_choice = nya if isinstance(nya, int) and 0 <= nya < len(NYA_VARIANTS) else 0
+        self.test_win = None
         self.en_voices = english_voices()
         en_voice = settings.get("en_voice")
         if en_voice not in self.en_voices:
@@ -412,8 +452,12 @@ class PaliTTSWindow:
         self.time_var = tk.StringVar(value="")
         ttk.Label(status_frame, textvariable=self.time_var,
                   foreground=MUTED, font=("", 9)).pack(side="right")
-        ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
-                  foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
+        tip_frame = ttk.Frame(root)
+        tip_frame.pack(fill="x", pady=(4, 0))
+        ttk.Label(tip_frame, text="Tip: Space bar = play / pause (Esc leaves the text box)",
+                  foreground=MUTED, font=("", 8)).pack(side="left")
+        ttk.Button(tip_frame, text="ññ test", width=7,
+                   command=self._open_nya_test).pack(side="right")
 
         self._on_mode()
         if "dark" in settings:
@@ -513,7 +557,7 @@ class PaliTTSWindow:
                               else "Saved as M4A (Apple audio) at the chosen speed and voices.")
 
     def _current_key(self):
-        """Settings key (mode, segments, speed, voice, English voice), or None."""
+        """Settings key (mode, segments, speed, voice, English voice, ññ), or None."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
             self.status_var.set("Please paste some text first.")
@@ -534,7 +578,87 @@ class PaliTTSWindow:
                                 else "No Pāli text detected.")
             return None
         en_voice = self.en_voice_var.get() if mode != "pi" else None
-        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice)
+        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice, nya_choice)
+
+    # ── ññ pronunciation test ─────────────────────────────────────────────────
+    def _open_nya_test(self):
+        if self.test_win is not None and self.test_win.winfo_exists():
+            self.test_win.lift()
+            return
+        win = self.test_win = tk.Toplevel(self.root)
+        win.title("ññ pronunciation test")
+        win.resizable(False, False)
+        win.configure(padx=20, pady=15)
+        if self.aqua:
+            try:
+                win.tk.call("::tk::unsupported::MacWindowStyle", "appearance", win,
+                            "darkaqua" if self.dark_var.get() else "aqua")
+            except tk.TclError:
+                pass
+        elif self.dark_var.get():
+            win.configure(bg=DARK["bg"])
+        ttk.Label(win, text="Words:  " + NYA_TEST_WORDS,
+                  font=("", 11, "bold")).pack(anchor="w")
+        ttk.Label(win, justify="left", text=(
+            "▶ Play test reads these words in 6 spellings, each after its\n"
+            "number (at the speed and Pāli voice of the main window).\n"
+            "Choose the number that sounds right; it is used from now on.")
+        ).pack(anchor="w", pady=(6, 10))
+        sample = None
+        try:
+            sample = to_kannada("aññaṃ", nya=0)
+        except Exception:
+            pass
+        self.nya_var = tk.IntVar(value=nya_choice)
+        for i, variant in enumerate(NYA_VARIANTS):
+            shown = sample.replace(NYA_VARIANTS[0], variant) if sample else variant
+            label = "%d.  %s%s" % (i + 1, shown, "   (old)" if i == 0 else "")
+            ttk.Radiobutton(win, text=label, variable=self.nya_var, value=i,
+                            command=self._on_nya_choice).pack(anchor="w", pady=1)
+        row = ttk.Frame(win)
+        row.pack(fill="x", pady=(12, 0))
+        ttk.Button(row, text="Close", command=win.destroy).pack(side="left")
+        ttk.Button(row, text=PLAY_TEXT + " test",
+                   command=self._play_nya_test).pack(side="right")
+        ttk.Label(win, text="Pause / Stop with the buttons in the main window.",
+                  foreground=MUTED, font=("", 9)).pack(anchor="w", pady=(8, 0))
+        win.bind("<space>", lambda e: (self._toggle(), "break")[1])
+
+    def _on_nya_choice(self):
+        global nya_choice
+        nya_choice = self.nya_var.get()
+        self.status_var.set("ññ spelling %d chosen." % (nya_choice + 1))
+
+    def _play_nya_test(self):
+        if self.busy:
+            return
+        if not IS_MAC:
+            self.status_var.set("The ññ test works on Mac only for now.")
+            return
+        self._stop()
+        _, rate, mult = SPEEDS[self._speed_index()]
+        voice = self.voice_var.get()
+        key = ("test", rate, voice)
+        self.busy = True
+        self.time_var.set("")
+        self.play_btn.config(state="disabled")
+        self.status_var.set("Preparing ññ test...")
+
+        def run():
+            try:
+                kannada = to_kannada(NYA_TEST_WORDS, nya=0)
+                parts = []
+                for i, variant in enumerate(NYA_VARIANTS):
+                    parts.append(("en", "Number %d." % (i + 1)))
+                    parts.append(("kn", kannada.replace(NYA_VARIANTS[0], variant)))
+                out, secs = build_joined(parts, rate, voice, None,
+                                         round(ENGLISH_WPM * min(mult, 1.0)),
+                                         self._set_status)
+            except Exception:
+                self._after(self._generation_failed, "ññ test failed — check internet.")
+                return
+            self._after(self._generated, key, out, secs)
+        threading.Thread(target=run, daemon=True).start()
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
     def _on_space(self, event):
@@ -569,7 +693,7 @@ class PaliTTSWindow:
                 self._pause()
                 return
             # Paused: resume, unless text/speed/voice changed meanwhile
-            if self._current_key() == self.play_key:
+            if self.play_key[0] == "test" or self._current_key() == self.play_key:
                 self._resume()
                 return
             self._stop()
@@ -589,7 +713,7 @@ class PaliTTSWindow:
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
     def _generate(self, key):
-        mode, segs, speed, voice, en_voice = key
+        mode, segs, speed, voice, en_voice, _nya = key
         _, rate, mult = SPEEDS[speed]
         if mode == "pi":  # one MP3 straight from Microsoft
             try:
@@ -611,36 +735,15 @@ class PaliTTSWindow:
             return
 
         # English / Both: make each part, convert to WAV, join into one file
-        work = tempfile.mkdtemp(prefix="palitts")
         try:
-            jobs, parts = [], []
             self._set_status("Transliterating...")
-            for i, (lang, text) in enumerate(segs):
-                if lang == "pi":
-                    src = os.path.join(work, "%03d.mp3" % i)
-                    jobs.append((to_kannada(text), src))
-                else:
-                    src = os.path.join(work, "%03d.aiff" % i)
-                parts.append((lang, text, src))
-            if jobs:
-                self._set_status("Generating Pāli audio...")
-                generate_audio_many(jobs, rate, voice)
-            self._set_status("Generating English audio...")
-            wavs = []
-            for lang, text, src in parts:
-                if lang == "en":
-                    say_to_file(text, src, round(ENGLISH_WPM * mult), en_voice)
-                wav = src.rsplit(".", 1)[0] + ".wav"
-                to_wav(src, wav)
-                wavs.append(wav)
-            tmp_fd, out = tempfile.mkstemp(suffix=".wav")
-            os.close(tmp_fd)
-            secs = join_wavs(wavs, out)
+            parts = [("kn", to_kannada(text)) if lang == "pi" else ("en", text)
+                     for lang, text in segs]
+            out, secs = build_joined(parts, rate, voice, en_voice,
+                                     round(ENGLISH_WPM * mult), self._set_status)
         except Exception:
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
-        finally:
-            shutil.rmtree(work, ignore_errors=True)
         self._after(self._generated, key, out, secs)
 
     def _generation_failed(self, msg):
@@ -732,7 +835,7 @@ class PaliTTSWindow:
             self.status_var.set("Stopped.")
 
     def _save_if_requested(self, key):
-        if not self.save_var.get() or key == self.saved_key:
+        if not self.save_var.get() or key == self.saved_key or key[0] == "test":
             return None
         mode, segs, speed = key[0], key[1], key[2]
         words = segs[0][1].split()[:4]
@@ -768,6 +871,7 @@ class PaliTTSWindow:
             "save": bool(self.save_var.get()),
             "mode": self.mode_var.get(),
             "en_voice": self.en_voice_var.get(),
+            "nya": nya_choice,
         }
         if "dark" in self.settings:
             data["dark"] = self.settings["dark"]
