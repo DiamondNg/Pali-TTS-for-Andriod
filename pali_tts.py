@@ -181,6 +181,13 @@ def generate_audio_many(jobs, rate, voice):
 
 
 # ── English voice (macOS `say`, offline) ──────────────────────────────────────
+# macOS sound-effect voices: not useful for reading suttas
+NOVELTY_VOICES = {
+    "Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos",
+    "Deranged", "Good News", "Hysterical", "Jester", "Organ", "Pipe Organ",
+    "Superstar", "Trinoids", "Whisper", "Wobble", "Zarvox",
+}
+
 def english_voices():
     """Names of the installed English voices (macOS)."""
     if not IS_MAC:
@@ -193,8 +200,9 @@ def english_voices():
     names = []
     for line in out.splitlines():
         m = re.match(r"^(.+?)\s+([a-z]{2,3})[_-]([A-Za-z0-9]+)\s+#", line)
-        if m and m.group(2) == "en" and m.group(1).strip() not in names:
-            names.append(m.group(1).strip())
+        name = m.group(1).strip() if m else ""
+        if m and m.group(2) == "en" and name not in names and name not in NOVELTY_VOICES:
+            names.append(name)
     return names
 
 def say_to_file(text, out_path, wpm, voice):
