@@ -12,6 +12,13 @@ import platform
 from datetime import datetime
 import tkinter as tk
 from tkinter import ttk
+import wave
+
+try:  # HTTPS certificates for the bundled Python
+    import certifi
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+except ImportError:
+    pass
 
 IS_MAC     = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
@@ -28,18 +35,29 @@ ENGLISH_MARKERS = {
     "have", "has", "had", "not", "but", "for", "from", "into", "will", "would",
     "should", "does", "do", "an", "in", "on", "at", "by", "as", "or", "if",
     "here", "how", "what", "who", "one", "all", "also", "then", "than",
+    "i", "you", "we", "my", "to", "be", "thus", "said", "heard", "been",
+    "these", "those", "them", "him", "its", "our", "your", "may", "can",
+    "must", "such", "because", "about",
 }
+# IAST Pāli never uses these letters; English often does
+NON_PALI_LETTERS = re.compile(r"[fqwxz]")
+PALI_DIACRITICS = re.compile(r"[āīūṃṁṅñṭḍṇḷĀĪŪṂṀṄÑṬḌṆḶ]")
 
+# (label, edge-tts rate, multiplier for the English voice)
+# The teacher's old 0.75x is the new 1x; every old step was scaled by 4/3
+# (old 1x -> 1.33x, old 1.25x -> 1.67x); old 1.5x and 1.75x were dropped.
 SPEEDS = [
-    ("0.25x", "-75%"),
-    ("0.5x",  "-50%"),
-    ("0.75x", "-25%"),
-    ("1x",    "+0%"),
-    ("1.25x", "+25%"),
-    ("1.5x",  "+50%"),
-    ("1.75x", "+75%"),
+    ("0.33x", "-75%", 1 / 3),
+    ("0.67x", "-50%", 2 / 3),
+    ("1x",    "-25%", 1.0),
+    ("1.33x", "+0%",  4 / 3),
+    ("1.67x", "+25%", 5 / 3),
 ]
-DEFAULT_SPEED = 3  # 1x
+DEFAULT_SPEED = 2  # 1x
+ENGLISH_WPM = 175  # macOS `say` words per minute at 1x
+
+MODES = [("Pāli", "pi"), ("English", "en"), ("Both", "both")]
+SYSTEM_VOICE = "System default"
 
 PLAY_TEXT   = "\u25B6  Play"
 RESUME_TEXT = "\u25B6  Resume"
@@ -69,8 +87,27 @@ def is_english_line(line):
     words = re.findall(r"[a-zA-Z]+", line.lower())
     if not words:
         return False
-    matches = sum(1 for w in words if w in ENGLISH_MARKERS)
+    matches = sum(1 for w in words if w in ENGLISH_MARKERS or NON_PALI_LETTERS.search(w))
+    if PALI_DIACRITICS.search(line) and matches < 2:
+        return False
     return matches >= 2 or (len(words) >= 3 and matches / len(words) > 0.3)
+
+def split_segments(text):
+    """[(lang, text)] in reading order; lang is "pi" or "en"."""
+    segs = []
+    for ln in text.splitlines():
+        if not ln.strip() or is_section_marker(ln) or is_non_latin_line(ln):
+            continue
+        lang = "en" if is_english_line(ln) else "pi"
+        if segs and segs[-1][0] == lang:
+            segs[-1] = (lang, segs[-1][1] + " " + ln)
+        else:
+            segs.append((lang, ln))
+    return [(lang, " ".join(t.split())) for lang, t in segs]
+
+def clean_pali(text):
+    # Quotes would make the voice pause (sarīran"ti): delete them, no space
+    return re.sub(r"[\"'“”‘’]", "", text)
 
 def filter_pali_lines(text):
     lines = text.splitlines()
@@ -87,7 +124,7 @@ def filter_pali_lines(text):
 # ── Aksharamukha API ──────────────────────────────────────────────────────────
 def to_kannada(text):
     # aksharamukha handles ṃ (dot-below) but not ṁ (dot-above)
-    text = text.replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
+    text = clean_pali(text).replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
     try:
         kannada = _to_kannada_local(text)
     except Exception:
@@ -133,6 +170,61 @@ async def _generate(kannada_text, output_path, rate, voice):
 def generate_audio(kannada_text, output_path, rate, voice):
     import asyncio
     asyncio.run(_generate(kannada_text, output_path, rate, voice))
+
+def generate_audio_many(jobs, rate, voice):
+    """jobs: [(kannada_text, output_path)], generated concurrently."""
+    import asyncio
+
+    async def run():
+        await asyncio.gather(*[_generate(t, p, rate, voice) for t, p in jobs])
+    asyncio.run(run())
+
+
+# ── English voice (macOS `say`, offline) ──────────────────────────────────────
+def english_voices():
+    """Names of the installed English voices (macOS)."""
+    if not IS_MAC:
+        return []
+    try:
+        out = subprocess.run(["say", "-v", "?"], capture_output=True,
+                             text=True, timeout=15).stdout
+    except Exception:
+        return []
+    names = []
+    for line in out.splitlines():
+        m = re.match(r"^(.+?)\s+([a-z]{2,3})[_-]([A-Za-z0-9]+)\s+#", line)
+        if m and m.group(2) == "en" and m.group(1).strip() not in names:
+            names.append(m.group(1).strip())
+    return names
+
+def say_to_file(text, out_path, wpm, voice):
+    cmd = ["say", "-r", str(wpm), "-o", out_path]
+    if voice and voice != SYSTEM_VOICE:
+        cmd += ["-v", voice]
+    subprocess.run(cmd + ["-f", "-"], input=text, text=True, check=True,
+                   capture_output=True, timeout=600)
+
+
+# ── Joining segments (macOS: afconvert ships with the system) ─────────────────
+SAMPLE_RATE = 24000  # = edge-tts output
+
+def to_wav(src, dst):
+    subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16@%d" % SAMPLE_RATE,
+                    "-c", "1", src, dst], check=True, capture_output=True, timeout=600)
+
+def join_wavs(parts, dst, gap=0.4):
+    """Concatenate mono 16-bit WAVs with a short silence between them."""
+    silence = b"\0\0" * int(SAMPLE_RATE * gap)
+    with wave.open(dst, "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(SAMPLE_RATE)
+        for i, part in enumerate(parts):
+            if i:
+                out.writeframes(silence)
+            with wave.open(part, "rb") as w:
+                out.writeframes(w.readframes(w.getnframes()))
+        return out.getnframes() / SAMPLE_RATE
 
 
 # ── Settings (remembered between uses) ────────────────────────────────────────
@@ -180,40 +272,60 @@ def fmt_time(seconds):
 
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
+MUTED = "#808080"  # secondary text: readable on light and dark backgrounds
+
+# Colours for the non-macOS dark mode (macOS uses its own dark appearance)
+DARK = {"bg": "#1e1e1e", "fg": "#e6e6e6", "field": "#2b2b2b", "accent": "#3a3a3a"}
+
+
 class PaliTTSWindow:
     def __init__(self, root, initial_text=""):
         self.root = root
+        self.aqua = root.tk.call("tk", "windowingsystem") == "aqua"
 
         self.proc = None          # running afplay process (macOS)
         self.paused = False
         self.busy = False         # transliterating / generating audio
         self.audio_path = None    # last generated audio, reused when settings match
-        self.audio_key = None     # (text, rate, voice) of audio_path
-        self.play_key = None      # (text, rate, voice) of what is playing/paused
-        self.saved_key = None     # (text, rate, voice) last saved to Downloads
+        self.audio_key = None     # settings key of audio_path
+        self.play_key = None      # key of what is playing/paused
+        self.saved_key = None     # key last saved to Downloads
         self.audio_secs = None    # length of audio_path in seconds
         self.elapsed = 0.0        # seconds played before the current run
         self.started = None       # time.monotonic() when playback (re)started
         self.poll_id = None       # pending root.after() for _poll
+        self.tk_widgets = []      # classic Tk widgets, recoloured for dark mode
 
-        settings = load_settings()
-        speed = settings.get("speed", DEFAULT_SPEED)
-        if not isinstance(speed, int) or not 0 <= speed < len(SPEEDS):
-            speed = DEFAULT_SPEED
+        self.settings = settings = load_settings()
+        rates = [r for _, r, _ in SPEEDS]
+        speed = rates.index(settings["rate"]) if settings.get("rate") in rates else DEFAULT_SPEED
         voice = settings.get("voice")
         if voice not in [v for _, v in VOICES]:
             voice = VOICES[0][1]
+        mode = settings.get("mode")
+        if mode not in [m for _, m in MODES]:
+            mode = "pi"
+        self.en_voices = english_voices()
+        en_voice = settings.get("en_voice")
+        if en_voice not in self.en_voices:
+            en_voice = SYSTEM_VOICE
 
-        root.title("Pali TTS")
+        root.title("Read Pāli Aloud")
         root.resizable(False, False)
         root.configure(padx=20, pady=15)
         root.protocol("WM_DELETE_WINDOW", self._close)
 
-        # ── Text area ─────────────────────────────────────────────────────────
-        ttk.Label(root, text="Pali text  (paste or edit):").pack(anchor="w")
+        # ── Text area + dark mode toggle ─────────────────────────────────────
+        top = ttk.Frame(root)
+        top.pack(fill="x")
+        ttk.Label(top, text="Text  (paste or edit):").pack(side="left")
+        self.dark_var = tk.BooleanVar(value=self._initial_dark())
+        ttk.Checkbutton(top, text="Dark mode", variable=self.dark_var,
+                        command=self._on_dark_toggle).pack(side="right")
         txt_frame = tk.Frame(root)
         txt_frame.pack(fill="x", pady=(4, 14))
-        self.text_box = tk.Text(txt_frame, height=6, width=38, wrap="word",
+        self.tk_widgets.append(txt_frame)
+        self.text_box = tk.Text(txt_frame, height=6, width=40, wrap="word",
                                 font=("", 10))
         scroll = ttk.Scrollbar(txt_frame, command=self.text_box.yview)
         self.text_box.configure(yscrollcommand=scroll.set)
@@ -232,26 +344,45 @@ class PaliTTSWindow:
         slider.pack(fill="x", pady=(4, 0))
         tick_frame = tk.Frame(root)
         tick_frame.pack(fill="x")
-        for label, _ in SPEEDS:
-            tk.Label(tick_frame, text=label, fg="#666",
-                     font=("", 8)).pack(side="left", expand=True)
+        self.tk_widgets.append(tick_frame)
+        for label, _, _ in SPEEDS:
+            lbl = tk.Label(tick_frame, text=label, fg=MUTED, font=("", 8))
+            lbl.pack(side="left", expand=True)
+            self.tk_widgets.append(lbl)
         self._on_drag(None)
 
-        # ── Voice ─────────────────────────────────────────────────────────────
+        # ── What to read ──────────────────────────────────────────────────────
+        mode_frame = ttk.Frame(root)
+        mode_frame.pack(anchor="w", pady=(12, 0))
+        ttk.Label(mode_frame, text="Read:").pack(side="left", padx=(0, 10))
+        self.mode_var = tk.StringVar(value=mode)
+        for label, value in MODES:
+            ttk.Radiobutton(mode_frame, text=label, variable=self.mode_var, value=value,
+                            command=self._on_mode).pack(side="left", padx=(0, 12))
+
+        # ── Voices ────────────────────────────────────────────────────────────
         voice_frame = ttk.Frame(root)
-        voice_frame.pack(anchor="w", pady=(12, 0))
-        ttk.Label(voice_frame, text="Voice:").pack(side="left", padx=(0, 10))
+        voice_frame.pack(anchor="w", pady=(8, 0))
+        ttk.Label(voice_frame, text="Pāli voice:").pack(side="left", padx=(0, 10))
         self.voice_var = tk.StringVar(value=voice)
         for label, voice_id in VOICES:
             ttk.Radiobutton(voice_frame, text=label, variable=self.voice_var,
                             value=voice_id).pack(side="left", padx=(0, 12))
+        en_frame = ttk.Frame(root)
+        en_frame.pack(anchor="w", pady=(8, 0))
+        ttk.Label(en_frame, text="English voice:").pack(side="left", padx=(0, 10))
+        self.en_voice_var = tk.StringVar(value=en_voice)
+        self.en_combo = ttk.Combobox(en_frame, textvariable=self.en_voice_var,
+                                     values=[SYSTEM_VOICE] + self.en_voices,
+                                     state="readonly", width=22)
+        self.en_combo.pack(side="left")
 
         # ── Save checkbox ─────────────────────────────────────────────────────
         self.save_var = tk.BooleanVar(value=bool(settings.get("save", False)))
-        ttk.Checkbutton(root, text="Save MP3 to Downloads",
+        ttk.Checkbutton(root, text="Save audio to Downloads",
                         variable=self.save_var).pack(anchor="w", pady=(10, 0))
-        ttk.Label(root, text="The MP3 is saved at the speed and voice chosen above.",
-                  foreground="#666", font=("", 9)).pack(anchor="w")
+        self.save_note = ttk.Label(root, text="", foreground=MUTED, font=("", 9))
+        self.save_note.pack(anchor="w")
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_frame = ttk.Frame(root)
@@ -269,12 +400,16 @@ class PaliTTSWindow:
         status_frame.pack(fill="x", pady=(8, 0))
         self.status_var = tk.StringVar(value="")
         ttk.Label(status_frame, textvariable=self.status_var,
-                  foreground="#555", font=("", 9)).pack(side="left")
+                  foreground=MUTED, font=("", 9)).pack(side="left")
         self.time_var = tk.StringVar(value="")
         ttk.Label(status_frame, textvariable=self.time_var,
-                  foreground="#555", font=("", 9)).pack(side="right")
+                  foreground=MUTED, font=("", 9)).pack(side="right")
         ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
-                  foreground="#888", font=("", 8)).pack(anchor="w", pady=(4, 0))
+                  foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
+
+        self._on_mode()
+        if "dark" in settings:
+            self._apply_theme()
 
         # ── Keyboard ──────────────────────────────────────────────────────────
         root.bind("<space>", self._on_space)
@@ -299,6 +434,61 @@ class PaliTTSWindow:
         else:
             self.text_box.focus_set()
 
+    # ── Dark mode ─────────────────────────────────────────────────────────────
+    def _initial_dark(self):
+        if "dark" in self.settings:
+            return bool(self.settings["dark"])
+        if self.aqua:  # follow the Mac's appearance until the user chooses
+            try:
+                return bool(int(self.root.tk.call(
+                    "::tk::unsupported::MacWindowStyle", "isdark", self.root)))
+            except (tk.TclError, ValueError):
+                return False
+        return False
+
+    def _on_dark_toggle(self):
+        self.settings["dark"] = bool(self.dark_var.get())
+        self._apply_theme()
+
+    def _apply_theme(self):
+        dark = bool(self.dark_var.get())
+        if self.aqua:
+            # Native macOS dark/light appearance for this window
+            try:
+                self.root.tk.call("::tk::unsupported::MacWindowStyle", "appearance",
+                                  self.root, "darkaqua" if dark else "aqua")
+            except tk.TclError:
+                pass
+            return
+        style = ttk.Style(self.root)
+        if not hasattr(self, "_light_theme"):
+            self._light_theme = style.theme_use()
+            self._light_bg = self.root.cget("bg")
+            self._light_text = (self.text_box.cget("bg"), self.text_box.cget("fg"))
+        if dark:
+            style.theme_use("clam")
+            bg, fg, field, accent = DARK["bg"], DARK["fg"], DARK["field"], DARK["accent"]
+            style.configure(".", background=bg, foreground=fg, fieldbackground=field)
+            style.configure("TButton", background=accent)
+            style.configure("TScrollbar", troughcolor=bg, background=accent)
+            style.configure("Horizontal.TScale", troughcolor=field, background=accent)
+            style.map("TButton", background=[("active", "#4a4a4a")])
+            style.map("TCombobox", fieldbackground=[("readonly", field)],
+                      foreground=[("readonly", fg)])
+            style.map("TCheckbutton", background=[("active", bg)])
+            style.map("TRadiobutton", background=[("active", bg)])
+            self.root.configure(bg=bg)
+            self.text_box.configure(bg=field, fg=fg, insertbackground=fg)
+            for wdg in self.tk_widgets:
+                wdg.configure(bg=bg)
+        else:
+            style.theme_use(self._light_theme)
+            self.root.configure(bg=self._light_bg)
+            self.text_box.configure(bg=self._light_text[0], fg=self._light_text[1],
+                                    insertbackground=self._light_text[1])
+            for wdg in self.tk_widgets:
+                wdg.configure(bg=self._light_bg)
+
     # ── Settings ──────────────────────────────────────────────────────────────
     def _speed_index(self):
         return max(0, min(len(SPEEDS) - 1, round(self.slider_var.get())))
@@ -308,23 +498,41 @@ class PaliTTSWindow:
         self.slider_var.set(idx)
         self.speed_label.config(text="Speed:  " + SPEEDS[idx][0])
 
+    def _on_mode(self):
+        mode = self.mode_var.get()
+        self.en_combo.config(state="disabled" if mode == "pi" else "readonly")
+        self.save_note.config(text="Saved as MP3 at the chosen speed and voice." if mode == "pi"
+                              else "Saved as M4A (Apple audio) at the chosen speed and voices.")
+
     def _current_key(self):
-        """(text, rate, voice) for the current settings, or None if no Pali text."""
+        """Settings key (mode, segments, speed, voice, English voice), or None."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
-            self.status_var.set("Please paste some Pali text first.")
+            self.status_var.set("Please paste some text first.")
             return None
-        text = " ".join(filter_pali_lines(text_content).split())
-        if not text:
-            self.status_var.set("No Pali text detected.")
+        mode = self.mode_var.get()
+        if mode == "pi":
+            text = " ".join(filter_pali_lines(text_content).split())
+            segs = (("pi", text),) if text else ()
+        else:
+            if not IS_MAC:
+                self.status_var.set("The English voice works on Mac only for now.")
+                return None
+            segs = tuple(split_segments(text_content))
+            if mode == "en":
+                segs = tuple(sg for sg in segs if sg[0] == "en")
+        if not segs:
+            self.status_var.set("No English text detected." if mode == "en"
+                                else "No Pāli text detected.")
             return None
-        return (text, SPEEDS[self._speed_index()][1], self.voice_var.get())
+        en_voice = self.en_voice_var.get() if mode != "pi" else None
+        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice)
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
     def _on_space(self, event):
         # Let Space type in the text box and activate focused buttons as usual
         if event.widget is self.text_box or isinstance(
-                event.widget, (ttk.Button, ttk.Checkbutton, ttk.Radiobutton)):
+                event.widget, (ttk.Button, ttk.Checkbutton, ttk.Radiobutton, ttk.Combobox)):
             return None
         self._toggle()
         return "break"
@@ -373,24 +581,59 @@ class PaliTTSWindow:
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
     def _generate(self, key):
-        text, rate, voice = key
-        try:
-            self._set_status("Transliterating...")
-            kannada = to_kannada(text)
-        except Exception:
-            self._after(self._generation_failed, "Transliteration failed — check internet.")
+        mode, segs, speed, voice, en_voice = key
+        _, rate, mult = SPEEDS[speed]
+        if mode == "pi":  # one MP3 straight from Microsoft
+            try:
+                self._set_status("Transliterating...")
+                kannada = to_kannada(segs[0][1])
+            except Exception:
+                self._after(self._generation_failed, "Transliteration failed — check internet.")
+                return
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
+            os.close(tmp_fd)
+            try:
+                self._set_status("Generating audio...")
+                generate_audio(kannada, tmp_path, rate, voice)
+            except Exception:
+                _unlink(tmp_path)
+                self._after(self._generation_failed, "Audio generation failed — check internet.")
+                return
+            self._after(self._generated, key, tmp_path, audio_duration(tmp_path))
             return
 
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
-        os.close(tmp_fd)
+        # English / Both: make each part, convert to WAV, join into one file
+        work = tempfile.mkdtemp(prefix="palitts")
         try:
-            self._set_status("Generating audio...")
-            generate_audio(kannada, tmp_path, rate, voice)
+            jobs, parts = [], []
+            self._set_status("Transliterating...")
+            for i, (lang, text) in enumerate(segs):
+                if lang == "pi":
+                    src = os.path.join(work, "%03d.mp3" % i)
+                    jobs.append((to_kannada(text), src))
+                else:
+                    src = os.path.join(work, "%03d.aiff" % i)
+                parts.append((lang, text, src))
+            if jobs:
+                self._set_status("Generating Pāli audio...")
+                generate_audio_many(jobs, rate, voice)
+            self._set_status("Generating English audio...")
+            wavs = []
+            for lang, text, src in parts:
+                if lang == "en":
+                    say_to_file(text, src, round(ENGLISH_WPM * mult), en_voice)
+                wav = src.rsplit(".", 1)[0] + ".wav"
+                to_wav(src, wav)
+                wavs.append(wav)
+            tmp_fd, out = tempfile.mkstemp(suffix=".wav")
+            os.close(tmp_fd)
+            secs = join_wavs(wavs, out)
         except Exception:
-            _unlink(tmp_path)
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
-        self._after(self._generated, key, tmp_path, audio_duration(tmp_path))
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        self._after(self._generated, key, out, secs)
 
     def _generation_failed(self, msg):
         self.busy = False
@@ -483,29 +726,44 @@ class PaliTTSWindow:
     def _save_if_requested(self, key):
         if not self.save_var.get() or key == self.saved_key:
             return None
-        words = key[0].split()[:4]
+        mode, segs, speed = key[0], key[1], key[2]
+        words = segs[0][1].split()[:4]
         base = "_".join(words)
-        base = re.sub(r'[/:\\*?"<>|,;.\(\)]', "", base).strip("_") or "pali_audio"
-        base += "_" + dict((r, l) for l, r in SPEEDS)[key[1]]
+        base = re.sub(r'[/:\\*?"<>|,;.\(\)\'“”‘’]', "", base).strip("_") or "pali_audio"
+        base += "_" + SPEEDS[speed][0]
+        if mode == "pi":
+            ext = ".mp3"
+        else:
+            ext = ".m4a"
+            base += "_" + ("english" if mode == "en" else "pali_english")
         dl = os.path.join(os.path.expanduser("~"), "Downloads")
-        mp3_name = base + ".mp3"
-        mp3_path = os.path.join(dl, mp3_name)
-        if os.path.exists(mp3_path):
-            mp3_name = base + "_" + datetime.now().strftime("%H%M%S") + ".mp3"
-            mp3_path = os.path.join(dl, mp3_name)
+        name = base + ext
+        path = os.path.join(dl, name)
+        if os.path.exists(path):
+            name = base + "_" + datetime.now().strftime("%H%M%S") + ext
+            path = os.path.join(dl, name)
         try:
-            shutil.copy(self.audio_path, mp3_path)
-        except OSError:
-            return "Could not save MP3 to Downloads."
+            if ext == ".mp3":
+                shutil.copy(self.audio_path, path)
+            else:
+                subprocess.run(["afconvert", "-f", "m4af", "-d", "aac", self.audio_path, path],
+                               check=True, capture_output=True, timeout=600)
+        except (OSError, subprocess.SubprocessError):
+            return "Could not save audio to Downloads."
         self.saved_key = key
-        return "Saved: " + mp3_name
+        return "Saved: " + name
 
     def _close(self):
-        save_settings({
-            "speed": self._speed_index(),
+        data = {
+            "rate": SPEEDS[self._speed_index()][1],
             "voice": self.voice_var.get(),
             "save": bool(self.save_var.get()),
-        })
+            "mode": self.mode_var.get(),
+            "en_voice": self.en_voice_var.get(),
+        }
+        if "dark" in self.settings:
+            data["dark"] = self.settings["dark"]
+        save_settings(data)
         self._stop()
         if self.poll_id is not None:
             self.root.after_cancel(self.poll_id)
@@ -539,6 +797,7 @@ def show_gui(initial_text=""):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
+    raw = ""
     if INPUT_FILE:
         try:
             with open(INPUT_FILE, "r", encoding="utf-8") as f:
@@ -546,10 +805,15 @@ def main():
             os.unlink(INPUT_FILE)
         except Exception:
             raw = ""
-    else:
-        raw = sys.stdin.read().strip()
+    elif sys.stdin is not None and not sys.stdin.isatty():
+        # Selected text from the Services menu; empty when opened as an app
+        try:
+            raw = sys.stdin.read().strip()
+        except (OSError, ValueError):
+            raw = ""
 
-    for ch in ["“", "”", "‘", "’", "—", "–"]:
+    # Dashes become pauses; quotes are removed later from the Pāli only
+    for ch in ["—", "–"]:
         raw = raw.replace(ch, " ")
 
     show_gui(initial_text=raw)

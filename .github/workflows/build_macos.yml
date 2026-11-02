@@ -12,6 +12,8 @@ on:
       - 'pali_tts.py'
       - 'README_Mac.txt'
       - 'requirements-macos.txt'
+      - 'assets/**'
+      - '.github/scripts/**'
       - '.github/workflows/build_macos.yml'
 
 permissions:
@@ -93,6 +95,8 @@ jobs:
           mkdir -p "$STAGE"
           cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
+          mkdir -p "$STAGE/.assets"
+          cp assets/AppIcon.icns "$STAGE/.assets/"
           chmod +x "$STAGE/Install Pali TTS.command"
           ditto runtime "$STAGE/.runtime"
           hdiutil create -volname "Pali TTS" -srcfolder "$STAGE" \
@@ -102,36 +106,51 @@ jobs:
       - name: Smoke-test the installer from the DMG
         run: |
           set -e
+          otool -L runtime/arm64/bin/python3 | head -5
           # Simulate a downloaded (quarantined) DMG
           xattr -w com.apple.quarantine "0081;00000000;Safari;" PaliTTS-macOS.dmg
           hdiutil attach PaliTTS-macOS.dmg -nobrowse
           # Choose "Just me", then press Enter at the final prompt
           printf '1\n\n' | bash "/Volumes/Pali TTS/Install Pali TTS.command"
           hdiutil detach "/Volumes/Pali TTS"
-          D="$HOME/Library/Scripts/PaliTTS"
-          test -f "$D/pali_tts.py"
-          test -x "$D/run.sh"
+          APP="/Applications/Read Pāli Aloud.app"
+          test -x "$APP/Contents/MacOS/ReadPaliAloud"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
-          "$D/runtime/bin/python3" -c 'import edge_tts, tkinter; tkinter.Tcl(); print("runtime OK")'
-          (cd "$D" && runtime/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))')
-          # The Tk window itself (needs the runner's GUI session)
-          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); r.update(); r.destroy(); print("Tk", tkinter.TkVersion, "window OK")'
-          cat "$D/run.sh"
+          grep -A1 COMMAND_STRING "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
+          "$APP/Contents/MacOS/python3" -c 'import sys, edge_tts, tkinter; tkinter.Tcl(); print("runtime OK", sys.prefix)'
+          (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("sarīran\"ti aññaṃ"), pali_tts.english_voices()[:5])')
+          # English voice + joining segments (offline, no Microsoft needed)
+          cd "$RUNNER_TEMP"
+          say -o en.aiff "Thus have I heard."
+          "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav"))'
+          afconvert -f m4af -d aac j.wav j.m4a && afinfo j.m4a | grep -i duration
+          defaults read pbs NSServicesStatus || true
 
       - name: GUI screenshot test
         run: |
-          D="$HOME/Library/Scripts/PaliTTS"
+          APP="/Applications/Read Pāli Aloud.app"
+          L="$APP/Contents/MacOS/ReadPaliAloud"
+          SET="$HOME/Library/Application Support/PaliTTS/settings.json"
           mkdir -p shots
           sw_vers
-          "$D/runtime/bin/python3" -c 'import tkinter; r = tkinter.Tk(); print("Tk patchlevel", r.call("info", "patchlevel"), r.call("tk", "windowingsystem")); r.destroy()'
+          "$APP/Contents/MacOS/python3" -c 'import tkinter; r = tkinter.Tk(); print("Tk patchlevel", r.call("info", "patchlevel"), r.call("tk", "windowingsystem")); r.destroy()'
           python3 -m venv "$RUNNER_TEMP/pv"
           "$RUNNER_TEMP/pv/bin/pip" install -q pillow pyobjc-framework-Quartz pyobjc-framework-Vision
           check() { sleep "$2"; "$RUNNER_TEMP/pv/bin/python" .github/scripts/gui_check.py "$1"; pkill -f pali_tts.py || true; sleep 1; }
-          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/light.log 2>&1 &
+          printf 'Evaṃ me sutaṃ.\nThus have I heard.' | "$L" > shots/light.log 2>&1 &
           check light 8
+          # Dark mode chosen in the app (system still light)
+          mkdir -p "$(dirname "$SET")"; echo '{"dark": true, "mode": "both"}' > "$SET"
+          printf 'Evaṃ me sutaṃ.\nThus have I heard.' | "$L" > shots/toggle-dark.log 2>&1 &
+          check toggle-dark 8
+          rm -f "$SET"
           osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' || echo "could not switch to dark mode"
-          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | bash "$D/run.sh" > shots/dark.log 2>&1 &
+          printf 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' | "$L" > shots/dark.log 2>&1 &
           check dark 8
+          # Opened like from Launchpad (Dock name/icon must be the app's)
+          open "$APP"
+          check launchpad 10
           # The way the right-click Services menu runs it (Automator workflow)
           automator -i 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' "$HOME/Library/Services/Read Pali Aloud.workflow" > shots/service.log 2>&1 &
           check service 12
