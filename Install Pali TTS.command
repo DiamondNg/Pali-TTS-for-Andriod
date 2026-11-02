@@ -18,17 +18,20 @@ read -rp "Enter 1 or 2: " scope
 scope="${scope:-1}"
 echo ""
 
+APP_NAME="Read Pāli Aloud"
 if [ "$scope" = "2" ]; then
-    INSTALL_DIR="/Library/Scripts/PaliTTS"
+    APP_DIR="/Applications"
     SERVICES_BASE="/Library/Services"
     SUDO="sudo"
     echo "Installing for all users (will ask for password)..."
 else
-    INSTALL_DIR="$HOME/Library/Scripts/PaliTTS"
+    # /Applications is writable for admin accounts; otherwise use ~/Applications
+    if [ -w /Applications ]; then APP_DIR="/Applications"; else APP_DIR="$HOME/Applications"; fi
     SERVICES_BASE="$HOME/Library/Services"
     SUDO=""
     echo "Installing for current user..."
 fi
+APP="$APP_DIR/$APP_NAME.app"
 echo ""
 
 # ── 1. Pick the bundled Python runtime for this Mac's chip ──────────────────
@@ -47,41 +50,60 @@ if [ ! -x "$BUNDLED/bin/python3" ]; then
     false
 fi
 
-# ── 2. Copy the runtime into place ───────────────────────────────────────────
-RUNTIME="$INSTALL_DIR/runtime"
-PY="$RUNTIME/bin/python3"
-echo "Copying Python runtime ($ARCH) to $RUNTIME ..."
-$SUDO mkdir -p "$INSTALL_DIR"
-$SUDO rm -rf "$RUNTIME" "$INSTALL_DIR/venv"   # venv: left over from older versions
-$SUDO ditto "$BUNDLED" "$RUNTIME"
-# Downloaded files are quarantined by macOS; clear that so Python can start
-$SUDO xattr -dr com.apple.quarantine "$RUNTIME" 2>/dev/null || true
-"$PY" -c 'import edge_tts, certifi, tkinter' # sanity check
-CERT_FILE="$("$PY" -c 'import certifi; print(certifi.where())')"
+# ── 2. Build the app (Applications / Launchpad / Dock) ───────────────────────
+# Python itself lives in Contents/MacOS so that macOS shows the app's name
+# and icon in the Dock (not "python3.13"); its libraries go in Contents/lib.
+STAGING=$(mktemp -d)
+C="$STAGING/$APP_NAME.app/Contents"
+mkdir -p "$C/MacOS" "$C/Resources"
+echo "Building $APP_NAME.app ($ARCH) ..."
+cp -pL "$BUNDLED/bin/python3" "$C/MacOS/python3"
+ditto "$BUNDLED/lib" "$C/lib"
+cp "$SCRIPT_DIR/pali_tts.py" "$C/Resources/pali_tts.py"
+if [ -f "$SCRIPT_DIR/.assets/AppIcon.icns" ]; then
+    cp "$SCRIPT_DIR/.assets/AppIcon.icns" "$C/Resources/AppIcon.icns"
+fi
+
+cat > "$C/MacOS/ReadPaliAloud" << 'LAUNCHER'
+#!/bin/bash
+# Started from Launchpad/Finder (no text) or by the Services menu (text on stdin)
+DIR="$(cd "$(dirname "$0")" && pwd)"
+if ! "$DIR/python3" -c 'import edge_tts' >/dev/null 2>&1; then
+    osascript -e 'display alert "Read Pāli Aloud" message "The app is damaged. Please run the Pali TTS installer again."'
+    exit 1
+fi
+exec "$DIR/python3" "$DIR/../Resources/pali_tts.py" "$@"
+LAUNCHER
+chmod +x "$C/MacOS/ReadPaliAloud"
+
+cat > "$C/Info.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key><string>$APP_NAME</string>
+    <key>CFBundleIdentifier</key><string>org.sasanarakkha.readpalialoud</string>
+    <key>CFBundleExecutable</key><string>ReadPaliAloud</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>2.0</string>
+    <key>CFBundleVersion</key><string>2.0</string>
+    <key>LSMinimumSystemVersion</key><string>10.15</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
+    <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+PLIST
+
+"$C/MacOS/python3" -c 'import edge_tts, certifi, tkinter' # sanity check
+LAUNCHER_PATH="$APP/Contents/MacOS/ReadPaliAloud"
 echo "Done."
 echo ""
 
-# ── 3. Stage all files in a temp directory ───────────────────────────────────
-STAGING=$(mktemp -d)
-STAGE_SCRIPTS="$STAGING/PaliTTS"
+# ── 3. Stage the Services workflow ───────────────────────────────────────────
 STAGE_WORKFLOW="$STAGING/Read Pali Aloud.workflow/Contents"
-mkdir -p "$STAGE_SCRIPTS" "$STAGE_WORKFLOW"
-
-cp "$SCRIPT_DIR/pali_tts.py" "$STAGE_SCRIPTS/pali_tts.py"
-
-WRAPPER="$STAGE_SCRIPTS/run.sh"
-FINAL_WRAPPER="$INSTALL_DIR/run.sh"
-cat > "$WRAPPER" << WRAPPER_EOF
-#!/bin/bash
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
-export SSL_CERT_FILE="$CERT_FILE"
-if ! "$PY" -c 'import edge_tts' >/dev/null 2>&1; then
-    osascript -e 'display alert "Pali TTS" message "The Python environment is broken. Please run the Pali TTS installer again."'
-    exit 1
-fi
-"$PY" "$INSTALL_DIR/pali_tts.py"
-WRAPPER_EOF
-chmod +x "$WRAPPER"
+mkdir -p "$STAGE_WORKFLOW"
 
 # ── 4. Stage Automator workflow ───────────────────────────────────────────────
 cat > "$STAGE_WORKFLOW/Info.plist" << 'PLIST'
@@ -153,7 +175,7 @@ cat > "$STAGE_WORKFLOW/document.wflow" << WFLOW
                 <key>ActionParameters</key>
                 <dict>
                     <key>COMMAND_STRING</key>
-                    <string>bash "$FINAL_WRAPPER"</string>
+                    <string>"$LAUNCHER_PATH"</string>
                     <key>CheckedForUserDefaultShell</key><true/>
                     <key>inputMethod</key><integer>0</integer>
                     <key>shell</key><string>/bin/bash</string>
@@ -217,7 +239,7 @@ cat > "$STAGE_WORKFLOW/document.wflow" << WFLOW
 </plist>
 WFLOW
 
-# ── 5. Remove old Services from both locations ────────────────────────────────
+# ── 5. Remove old versions ────────────────────────────────────────────────────
 for dir in "$HOME/Library/Services" "/Library/Services"; do
     for old in \
         "Read Pali Aloud (Slow)" \
@@ -228,33 +250,44 @@ for dir in "$HOME/Library/Services" "/Library/Services"; do
         rm -rf "${dir}/${old}.workflow" 2>/dev/null || true
     done
 done
+# Before version 2 the program lived in ~/Library/Scripts/PaliTTS
+rm -rf "$HOME/Library/Scripts/PaliTTS" 2>/dev/null || true
+if [ "$scope" = "2" ]; then sudo rm -rf "/Library/Scripts/PaliTTS"; fi
 
 # ── 6. Copy staged files to final location ────────────────────────────────────
+$SUDO mkdir -p "$APP_DIR" "$SERVICES_BASE"
+$SUDO rm -rf "$APP" "$SERVICES_BASE/Read Pali Aloud.workflow"
+$SUDO ditto "$STAGING/$APP_NAME.app" "$APP"
+$SUDO ditto "$STAGING/Read Pali Aloud.workflow" "$SERVICES_BASE/Read Pali Aloud.workflow"
+# Downloaded files are quarantined by macOS; clear that so the app can start
+$SUDO xattr -dr com.apple.quarantine "$APP" "$SERVICES_BASE/Read Pali Aloud.workflow" 2>/dev/null || true
 if [ "$scope" = "2" ]; then
-    sudo mkdir -p "$INSTALL_DIR" "$SERVICES_BASE"
-    sudo rm -rf "$SERVICES_BASE/Read Pali Aloud.workflow"
-    sudo cp -r "$STAGE_SCRIPTS/." "$INSTALL_DIR/"
-    sudo chmod +x "$INSTALL_DIR/run.sh"
-    sudo chmod -R a+rX "$INSTALL_DIR"
-    sudo cp -r "$STAGING/Read Pali Aloud.workflow" "$SERVICES_BASE/"
-    sudo chmod -R a+rX "$SERVICES_BASE/Read Pali Aloud.workflow"
-else
-    mkdir -p "$INSTALL_DIR" "$SERVICES_BASE"
-    cp -r "$STAGE_SCRIPTS/." "$INSTALL_DIR/"
-    cp -r "$STAGING/Read Pali Aloud.workflow" "$SERVICES_BASE/"
+    sudo chmod -R a+rX "$APP" "$SERVICES_BASE/Read Pali Aloud.workflow"
 fi
 rm -rf "$STAGING"
-echo "Installed to $INSTALL_DIR"
+# Tell Launchpad/Finder about the app and its icon
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f "$APP" 2>/dev/null || true
+echo "Installed $APP"
 
-# ── 7. Refresh Services menu ─────────────────────────────────────────────────
+# ── 7. Keyboard shortcut Control-Command-P, refresh Services menu ────────────
+# (^ = Control, @ = Command; can be changed in System Settings → Keyboard →
+#  Keyboard Shortcuts → Services → Text)
+defaults write pbs NSServicesStatus -dict-add \
+    '"(null) - Read Pali Aloud - runWorkflowAsService"' \
+    '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "key_equivalent" = "@^p"; }' \
+    2>/dev/null || true
+/System/Library/CoreServices/pbs -flush 2>/dev/null || true
 /System/Library/CoreServices/pbs -update 2>/dev/null || true
 
 echo ""
 echo "=== Done! ==="
 echo ""
-echo "Select any Pali text -> right-click -> Services -> Read Pali Aloud"
-echo "A small window will appear to choose speed and download option."
+echo "Two ways to use it:"
+echo "  • Select text -> press Control-Command-P"
+echo "    (or right-click -> Services -> Read Pali Aloud)"
+echo "  • Open \"$APP_NAME\" from Launchpad or Applications and paste text"
 echo ""
-echo "If the service does not appear yet, log out and back in."
+echo "If the shortcut or menu item does not work yet, log out and back in."
 
 read -p "Press Enter to close this window..."

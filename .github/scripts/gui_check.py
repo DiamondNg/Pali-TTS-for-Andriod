@@ -18,7 +18,7 @@ pids = {int(p) for p in subprocess.run(["pgrep", "-f", "pali_tts.py"], capture_o
                                        text=True).stdout.split()}
 wins = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
 ours = [w for w in wins if w.get("kCGWindowOwnerPID") in pids and w.get("kCGWindowLayer") == 0]
-print(f"[{name}] pids={sorted(pids)} windows={[(w['kCGWindowNumber'], dict(w['kCGWindowBounds'])) for w in ours]}")
+print(f"[{name}] pids={sorted(pids)} windows={[(w['kCGWindowNumber'], w.get('kCGWindowOwnerName'), dict(w['kCGWindowBounds'])) for w in ours]}")
 if not ours:
     print(f"[{name}] NO WINDOW")
     sys.exit(0)
