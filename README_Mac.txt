@@ -25,6 +25,7 @@ INSTALLATION
      log out and back in (or restart).
 
 HOW TO USE
+  (All of this is also in the app: click "Help" at the top of the window.)
   • Select text in any app (browser, PDF, Word...) and press
     Shift-Command-Y, or right-click → Services → "Read Pali Aloud".
     (The installer takes Shift-Command-Y away from macOS's "Make New

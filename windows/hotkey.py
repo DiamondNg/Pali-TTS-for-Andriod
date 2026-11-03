@@ -1,4 +1,5 @@
-"""Ctrl+Shift+Y anywhere in Windows: copy the selected text and open Read Pāli Aloud with it.
+"""Clipboard helpers: Ctrl+Shift+Y uses copy_selection() only when UI Automation
+(uia.py) cannot read the selection. main() is the v2.2–v2.4 helper (now tray.py).
 
 Runs in the background (started at login by a Startup-folder shortcut).
 Uses only Windows' own user32/kernel32 through ctypes: no AutoHotkey needed.

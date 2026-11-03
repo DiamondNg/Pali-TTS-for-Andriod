@@ -646,8 +646,10 @@ DARK = {"bg": "#1e1e1e", "fg": "#e6e6e6", "field": "#2b2b2b", "accent": "#3a3a3a
 
 
 class PaliTTSWindow:
-    def __init__(self, root, initial_text=""):
+    def __init__(self, root, initial_text="", tray=None):
         self.root = root
+        self.tray = tray          # Windows: tray.Background; closing only hides the window
+        self.help_win = None
         self.aqua = root.tk.call("tk", "windowingsystem") == "aqua"
 
         self.player = None        # AfplayPlayer (macOS) / MciPlayer (Windows)
@@ -698,6 +700,8 @@ class PaliTTSWindow:
         self.dark_var = tk.BooleanVar(value=self._initial_dark())
         ttk.Checkbutton(top, text="Dark mode", variable=self.dark_var,
                         command=self._on_dark_toggle).pack(side="right")
+        ttk.Button(top, text="Help", width=6,
+                   command=self.show_help).pack(side="right", padx=(0, 12))
         txt_frame = tk.Frame(root)
         txt_frame.pack(fill="both", expand=True, pady=(4, 14))  # takes the extra space
         self.tk_widgets.append(txt_frame)
@@ -779,6 +783,14 @@ class PaliTTSWindow:
                         variable=self.save_var).pack(anchor="w", pady=(10, 0))
         self.save_note = ttk.Label(root, text="", foreground=MUTED, font=("", 9))
         self.save_note.pack(anchor="w")
+        if tray is not None:  # Windows background options
+            self.popup_var = tk.BooleanVar(value=bool(settings.get("popup", True)))
+            ttk.Checkbutton(root, text="Show a \u25B6 Read Pāli button when I select text",
+                            variable=self.popup_var,
+                            command=self._on_popup_toggle).pack(anchor="w", pady=(4, 0))
+            self.startup_var = tk.BooleanVar(value=tray.startup_enabled())
+            ttk.Checkbutton(root, text="Run on Windows startup", variable=self.startup_var,
+                            command=self._on_startup_toggle).pack(anchor="w", pady=(4, 0))
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_frame = ttk.Frame(root)
@@ -802,8 +814,8 @@ class PaliTTSWindow:
                   foreground=MUTED, font=("", 9)).pack(side="right")
         ttk.Label(root, text="Tip: select text in any app and press " + SHORTCUT +
                   " to open it here", foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
-        ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
-                  foreground=MUTED, font=("", 8)).pack(anchor="w")
+        ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box) · "
+                  "more under Help", foreground=MUTED, font=("", 8)).pack(anchor="w")
 
         self._on_mode()
         if "dark" in settings:
@@ -822,22 +834,107 @@ class PaliTTSWindow:
             w, h = max(min_w, int(size[0])), max(min_h, int(size[1]))
         except (TypeError, ValueError, IndexError):
             w, h = min_w, min_h
-        w = min(w, root.winfo_screenwidth())
-        h = min(h, root.winfo_screenheight() - 70)
+        self._place(min(w, root.winfo_screenwidth()), min(h, root.winfo_screenheight() - 70))
+        if tray is None:
+            self._present(bool(initial_text))
+
+    def _place(self, w, h):
+        """Size w×h, centred on the mouse pointer, whole window on screen."""
+        root = self.root
         cx = root.winfo_pointerx()
         cy = root.winfo_pointery()
         # Keep the whole window on screen (below the macOS menu bar)
         x = max(0, min(cx - w // 2, root.winfo_screenwidth() - w))
         y = max(30, min(cy - h // 2, root.winfo_screenheight() - h - 40))
         root.geometry("%dx%d+%d+%d" % (w, h, x, y))
+
+    def _present(self, has_text):
+        root = self.root
+        root.deiconify()
         root.lift()
         root.attributes("-topmost", True)
         root.after(200, lambda: root.attributes("-topmost", False))
         root.focus_force()
-        if initial_text:
+        if has_text:
             root.focus_set()  # so Space plays straight away
         else:
             self.text_box.focus_set()
+
+    # ── Shown again from the tray / shortcut / floating button (Windows) ─────
+    def show(self, text=None, autoplay=False):
+        """Bring the window up; text (if given) replaces the text box's text."""
+        hidden = self.root.state() == "withdrawn"
+        if text is not None:
+            text = prepare_text(text)
+            if text:
+                self._stop()
+                self.text_box.delete("1.0", "end")
+                self.text_box.insert("1.0", text)
+            elif hidden:
+                self.status_var.set("No selected text found: paste the text here.")
+        if hidden:  # appear where the mouse is, at the remembered size
+            self.root.update_idletasks()
+            self._place(self.root.winfo_width(), self.root.winfo_height())
+        self._present(bool(text))
+        if autoplay and text and not self.busy:
+            self._start()
+
+    def _on_popup_toggle(self):
+        self.settings["popup"] = bool(self.popup_var.get())
+        self.tray.set_popup_enabled(self.settings["popup"])
+        self._save_settings()
+
+    def set_popup(self, enabled):  # from the tray menu
+        self.popup_var.set(bool(enabled))
+        self.settings["popup"] = bool(enabled)
+        self._save_settings()
+
+    def _on_startup_toggle(self):
+        if not self.tray.set_startup(bool(self.startup_var.get())):
+            self.startup_var.set(self.tray.startup_enabled())
+            self.status_var.set("Could not change the Windows startup setting.")
+
+    # ── Help ──────────────────────────────────────────────────────────────────
+    def show_help(self):
+        if self.help_win is not None and self.help_win.winfo_exists():
+            self.help_win.deiconify()
+            self.help_win.lift()
+            self.help_win.focus_force()
+            return
+        win = self.help_win = tk.Toplevel(self.root)
+        win.title("Read Pāli Aloud – Help")
+        win.geometry("560x520")
+        win.minsize(360, 260)
+        frame = tk.Frame(win)
+        frame.pack(fill="both", expand=True)
+        box = tk.Text(frame, wrap="word", font=("", 10), padx=12, pady=10,
+                      relief="flat", borderwidth=0)
+        scroll = ttk.Scrollbar(frame, command=box.yview)
+        box.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        box.pack(side="left", fill="both", expand=True)
+        box.tag_configure("h", font=("", 11, "bold"), spacing1=8, spacing3=2)
+        for line in help_text(tray=self.tray is not None).splitlines():
+            if line.startswith("# "):
+                box.insert("end", line[2:] + "\n", "h")
+            else:
+                box.insert("end", line + "\n")
+        box.configure(state="disabled")
+        ttk.Button(win, text="Close", command=win.destroy).pack(pady=8)
+        win.bind("<Escape>", lambda e: win.destroy())
+        if bool(self.dark_var.get()):
+            if self.aqua:
+                try:
+                    win.tk.call("::tk::unsupported::MacWindowStyle", "appearance",
+                                win, "darkaqua")
+                except tk.TclError:
+                    pass
+            else:
+                win.configure(bg=DARK["bg"])
+                frame.configure(bg=DARK["bg"])
+                box.configure(bg=DARK["field"], fg=DARK["fg"])
+        win.lift()
+        win.focus_force()
 
     # ── Dark mode ─────────────────────────────────────────────────────────────
     def _initial_dark(self):
@@ -1191,6 +1288,22 @@ class PaliTTSWindow:
         save_settings(self.settings)
 
     def _close(self):
+        if self.tray is not None:  # Windows: hide in the tray, keep running
+            self._save_settings()
+            self._stop()
+            self.root.withdraw()
+            if self.help_win is not None and self.help_win.winfo_exists():
+                self.help_win.destroy()
+            if not self.settings.get("tray_hint"):
+                self.settings["tray_hint"] = True
+                self._save_settings()
+                self.tray.balloon("Read Pāli Aloud is still running",
+                                  "It is in the tray (bottom right). Right-click its icon "
+                                  "and choose Exit to close it completely.")
+            return
+        self.quit()
+
+    def quit(self):
         self._save_settings()
         self._stop()
         if self.poll_id is not None:
@@ -1251,27 +1364,58 @@ def show_gui(initial_text=""):
     root.mainloop()
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-def main():
-    raw = ""
-    if INPUT_FILE:
-        try:
-            with open(INPUT_FILE, "r", encoding="utf-8") as f:
-                raw = f.read().strip()
-            os.unlink(INPUT_FILE)
-        except Exception:
-            raw = ""
-    elif sys.stdin is not None and not sys.stdin.isatty():
-        # Selected text from the Services menu; empty when opened as an app
-        try:
-            raw = sys.stdin.read().strip()
-        except (OSError, ValueError):
-            raw = ""
+def run_with_tray(background_class, show=False, text=""):
+    """Windows: one process in the background (tray icon, Ctrl+Shift+Y, floating
+    button); the window is hidden instead of closed. Exit from the tray menu."""
+    import queue
+    root = tk.Tk()
+    root.withdraw()
+    _windows_setup(root)
+    commands = queue.Queue()
+    settings = load_settings()
+    bg = background_class(commands, popup_enabled=bool(settings.get("popup", True)))
+    bg.start()
+    window = PaliTTSWindow(root, "", tray=bg)
+    if not bg.hotkey_ok:
+        window.status_var.set("Ctrl+Shift+Y is used by another program: shortcut is off.")
 
+    def pump():
+        try:
+            while True:
+                cmd = commands.get_nowait()
+                if cmd[0] == "open":
+                    window.show(cmd[1], autoplay=cmd[2])
+                elif cmd[0] == "show":
+                    window.show()
+                elif cmd[0] == "help":
+                    window.show_help()
+                elif cmd[0] == "popup":
+                    window.set_popup(cmd[1])
+                elif cmd[0] == "exit":
+                    window.quit()
+                    return
+        except queue.Empty:
+            pass
+        except Exception:
+            pass
+        root.after(100, pump)
+
+    root.after(100, pump)
+    if show:
+        root.after(150, lambda: window.show(text or None))
+    root.mainloop()
+    bg.stop()
+    time.sleep(0.3)  # let the tray icon go
+
+
+def prepare_text(raw):
+    """Text as received from another program, ready for the text box."""
+    import unicodedata
+    raw = unicodedata.normalize("NFC", raw)  # ā as one letter, not a + ̄
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
     # Dashes become pauses; quotes are removed later from the Pāli only
     for ch in ["—", "–"]:
         raw = raw.replace(ch, " ")
-
     dump = os.environ.get("PALI_TTS_DUMP")  # automated tests: record the text received
     if dump:
         try:
@@ -1279,8 +1423,127 @@ def main():
                 f.write(raw)
         except OSError:
             pass
+    return raw
 
-    show_gui(initial_text=raw)
+
+def read_input():
+    """Text given on start: --input-file, or the Mac Services menu (stdin)."""
+    raw = ""
+    if INPUT_FILE:
+        try:
+            with open(INPUT_FILE, "r", encoding="utf-8") as f:
+                raw = f.read()
+            os.unlink(INPUT_FILE)
+        except Exception:
+            raw = ""
+    elif sys.stdin is not None and not sys.stdin.isatty():
+        # Selected text from the Services menu; empty when opened as an app
+        try:
+            raw = sys.stdin.read()
+        except (OSError, ValueError):
+            raw = ""
+    return raw
+
+
+# Languages "Auto (by language)" recognises (needs a voice of that language installed)
+AUTO_LANGUAGES = (
+    "By their script: Chinese, Japanese, Korean, Thai, Lao, Khmer, Burmese, Sinhala, "
+    "Hindi (all Devanagari text), Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, "
+    "Punjabi, Arabic, Hebrew, Greek, Russian (all Cyrillic text), Ukrainian, Georgian.\n"
+    "By common words, in Latin letters: English, Malay (uses an Indonesian voice if there "
+    "is no Malay one), Spanish, French, German, Italian, Portuguese, Dutch, Tagalog; "
+    "Vietnamese by its letters.\n"
+    "Anything else, and very short lines, is read as English with the system voice.")
+
+
+def help_text(tray=False):
+    """Help window text; lines starting with "# " are headings."""
+    if IS_MAC:
+        open_it = (
+            "# Open it with selected text\n"
+            "• Select text in any app (browser, PDF, Word...) and press Cmd+Shift+Y.\n"
+            "• Or right-click the selection → Services → Read Pali Aloud. This works in "
+            "every Mac app.\n"
+            "• Or open Read Pāli Aloud from Launchpad / Applications and paste text.\n"
+            "• Change the shortcut: System Settings → Keyboard → Keyboard Shortcuts → "
+            "Services → Text → Read Pali Aloud.\n"
+            "• If the shortcut or menu item does not work at first: log out and in again.")
+        quit_it = (
+            "# Closing\n"
+            "• Close (or the red button) closes the app. Nothing keeps running "
+            "in the background: the shortcut and the Services menu start it again.")
+        voices = ("System Settings → Accessibility → Spoken Content → System voice → "
+                  "Manage Voices")
+    else:
+        open_it = (
+            "# Open it with selected text\n"
+            "• Select text in any program and press Ctrl+Shift+Y. The window opens with "
+            "that text.\n"
+            "• Or select text with the mouse: a small blue \u25B6 Read Pāli button appears "
+            "next to the mouse. Click it to read the text aloud at once.\n"
+            "   – Press Esc, or click anywhere else, to hide the button.\n"
+            "   – Turn the button off: untick \"Show a \u25B6 Read Pāli button when I select "
+            "text\" in this window, or right-click the tray icon → Pause Floating Popup.\n"
+            "• The text is read straight from the program (Windows UI Automation), without "
+            "copying: the clipboard is not changed, so clipboard tools such as GoldenDict "
+            "are not set off. Works in Edge, Chrome, Word, Notepad and most programs.\n"
+            "• A few programs (some PDF readers, for example) do not share their text this "
+            "way: there the button does not appear, and Ctrl+Shift+Y copies the selection "
+            "instead (this does replace the clipboard).\n"
+            "• Windows has no right-click menu item for selected text in all programs; use "
+            "Ctrl+Shift+Y or the button.\n"
+            "• Or open Read Pāli Aloud from the Start menu and paste text.\n"
+            "\n"
+            "# Tray icon (bottom right of the taskbar)\n"
+            "• Read Pāli Aloud keeps running in the tray, so the shortcut and the button "
+            "always work. If you don't see the icon, click the ^ arrow next to the clock.\n"
+            "• Click the icon: open this window.\n"
+            "• Right-click the icon: Settings (this window), Pause Floating Popup (tick = "
+            "the button is off), Help, Exit.\n"
+            "\n"
+            "# Closing and exiting\n"
+            "• Close (or the window's ×) only hides the window; the app stays in the tray.\n"
+            "• To quit completely: right-click the tray icon → Exit. Ctrl+Shift+Y and the "
+            "button then stop working until you open Read Pāli Aloud again.\n"
+            "• \"Run on Windows startup\" (in this window) starts it in the tray when you "
+            "sign in to Windows.")
+        quit_it = ""
+        voices = "Settings → Time & language → Speech → Add voices"
+    parts = [open_it,
+             "# Play, pause and stop\n"
+             "• \u25B6 Play reads the text; it becomes \u23F8 Pause, then \u25B6 Resume.\n"
+             "• \u23F9 Stop stops; the next Play starts from the beginning.\n"
+             "• Space bar = play / pause. When you are typing in the text box, press Esc "
+             "first (Esc leaves the text box), then Space.\n"
+             "• The time shows how far it has read and how long the audio is.",
+             "# Settings in the window\n"
+             "• Pāli speed: 0.33x to 1.67x. Translation speed: 0.75x to 3x.\n"
+             "• Read: Pāli only, Translation only (every line that is not Pāli), or Both "
+             "in order.\n"
+             "• Pāli voice: Male or Female (Microsoft's Kannada voices; needs internet).\n"
+             "• Translation voice: one of this computer's own voices (no internet "
+             "needed). More voices: " + voices + ".\n"
+             "• Save audio to Downloads: saves an MP3; the speed is in the file name.\n"
+             "• Dark mode: top right.\n"
+             "• The window can be made bigger; the text box grows with it.\n"
+             "• All settings, the window size and dark mode are remembered.",
+             "# Auto (by language) translation voice\n"
+             "Picks a voice for each translation line from its language, if a voice of "
+             "that language is installed.\n" + AUTO_LANGUAGES,
+             "# Good to know\n"
+             "• Lines are sorted into Pāli and translation one by one. Pāli without "
+             "diacritics is recognised too; very short lines in other languages that end "
+             "in vowels may be taken for Pāli.\n"
+             "• Quotation marks are left out of the Pāli; dashes become short pauses.\n"
+             "• The Pāli voice needs speech.platform.bing.com (internet)."]
+    if quit_it:
+        parts.append(quit_it)
+    return "\n\n".join(parts) + "\n\nRead Pāli Aloud " + APP_VERSION
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+def main():
+    show_gui(initial_text=prepare_text(read_input()))
 
 
 if __name__ == "__main__":

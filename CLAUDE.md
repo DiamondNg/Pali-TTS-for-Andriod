@@ -37,6 +37,18 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   once on dark toggle; `APP_VERSION` in pali_tts.py → installer names "Read Pāli Aloud v2.5.exe"
   / ".dmg" (CI reads it). Windows right-click on selected text: not possible system-wide
   (no Services equivalent) → not done; options: browser extension, Explorer menu for .txt files.
+- v2.5 also (same branch/PR #7): Windows = ONE background process `windows/tray.py` (`--tray`;
+  `--hotkey` alias; no args/`--input-file` → hands text to the running copy via WM_COPYDATA to
+  hidden window class `PaliTTS.TrayWindow`, mutex `Local\PaliTTS.ReadPaliAloud.Tray`). Threads:
+  Tk main (`pali_tts.run_with_tray`, queue `pump`; Close = withdraw, tray Exit = quit), Win32
+  (Shell_NotifyIcon menu Settings/Pause Floating Popup/Help/Exit, RegisterHotKey Ctrl+Shift+Y,
+  WH_MOUSE_LL drag/double-click → check; re-hooked every 5 min; Esc = temporary hotkey while
+  popup shown, no keyboard hook), worker (UIA via comtypes in `windows/uia.py`: focused element
+  / element at cursor, walk parents for TextPattern.GetSelection; hotkey falls back to Ctrl+C).
+  Popup `PaliTTS.Popup` WS_EX_NOACTIVATE, click → open window + autoplay. Settings `popup`,
+  `tray_hint` (balloon once); startup = HKCU Run value "Read Pali Aloud" (installer [Registry],
+  checkbox). Help button/window on both OSes: `help_text()` (Mac: Services, no tray),
+  `AUTO_LANGUAGES`. `prepare_text` NFC + CR→LF. CI `win_gui_test.ps1` tests all of it.
 - Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)

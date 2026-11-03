@@ -18,11 +18,25 @@ INSTALLATION
      it installs for your Windows user only).
 
 HOW TO USE
+  (All of this is also in the app: click "Help" at the top of the window.)
   • Select text in any program (browser, PDF, Word...) and press
     Ctrl + Shift + Y. The window opens with the selected text.
-    (The shortcut copies the selection, so it replaces the clipboard.)
-    Windows has no right-click menu for selected text in all programs,
-    so the shortcut is the way to send a selection to the app.
+  • Or select text with the mouse: a small blue "▶ Read Pāli" button
+    appears next to the mouse. Click it and the text is read aloud.
+    Esc or a click elsewhere hides the button. Turn it off with the
+    checkbox in the window, or tray icon → "Pause Floating Popup".
+  • The text is read straight from the program (Windows UI Automation),
+    not copied: the clipboard stays as it is, so clipboard tools such as
+    GoldenDict are not set off. Programs that don't share their text this
+    way (some PDF readers): no button; Ctrl + Shift + Y then copies the
+    selection (this replaces the clipboard).
+    Windows has no right-click menu for selected text in all programs.
+  • Tray icon (bottom right; maybe under the ^ arrow): click = open the
+    window; right-click = Settings, Pause Floating Popup, Help, Exit.
+  • Close only hides the window; the app stays in the tray so the
+    shortcut and button keep working. Quit completely: tray icon → Exit.
+  • "Run on Windows startup" (checkbox in the window): starts it in the
+    tray when you sign in (on by default; reinstalling turns it on again).
   • Or open "Read Pāli Aloud" from the Start menu and paste text.
   The window:
        - Pāli speed slider 0.33x – 1.67x
@@ -49,8 +63,8 @@ UNINSTALL
   Settings → Apps → Installed apps → "Read Pāli Aloud" → Uninstall.
 
 TROUBLESHOOTING
-  • Ctrl + Shift + Y does nothing: sign out and in again (the small
-    shortcut helper starts at login). If another program already uses
-    Ctrl + Shift + Y, a message says so at login.
+  • Ctrl + Shift + Y or the button do nothing: is the tray icon there?
+    If not, open Read Pāli Aloud from the Start menu. If another program
+    already uses Ctrl + Shift + Y, the window says so.
   • "Audio generation failed" — check internet; Microsoft TTS
     (speech.platform.bing.com) must be reachable.

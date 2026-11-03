@@ -35,15 +35,19 @@ Source: "README_Windows.txt"; DestDir: "{app}"; DestName: "Read Me.txt"; Flags: 
 [InstallDelete]
 ; files of an older version
 Type: filesandordirs; Name: "{app}\_internal"
+; v2.2–v2.4 started the shortcut helper from the Startup folder; now the Run key below
+Type: files; Name: "{userstartup}\Read Pāli Aloud shortcut.lnk"
+
+[Registry]
+; "Run on Windows startup" (can be switched off in the app's window)
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Read Pali Aloud"; ValueData: """{app}\ReadPaliAloud.exe"" --tray"; Flags: uninsdeletevalue
 
 [Icons]
 Name: "{userprograms}\Read Pāli Aloud"; Filename: "{app}\ReadPaliAloud.exe"; IconFilename: "{app}\AppIcon.ico"
 Name: "{userdesktop}\Read Pāli Aloud"; Filename: "{app}\ReadPaliAloud.exe"; IconFilename: "{app}\AppIcon.ico"; Tasks: desktopicon
-; Ctrl+Shift+Y helper, started at every login
-Name: "{userstartup}\Read Pāli Aloud shortcut"; Filename: "{app}\ReadPaliAloud.exe"; Parameters: "--hotkey"; IconFilename: "{app}\AppIcon.ico"
 
 [Run]
-Filename: "{app}\ReadPaliAloud.exe"; Parameters: "--hotkey"; Flags: nowait
+Filename: "{app}\ReadPaliAloud.exe"; Parameters: "--tray"; Flags: nowait
 Filename: "{app}\ReadPaliAloud.exe"; Description: "Open Read Pāli Aloud now"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -54,7 +58,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  { Stop a running copy (the Ctrl+Shift+Y helper) so its files can be replaced }
+  { Stop a running copy (it runs in the tray) so its files can be replaced }
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im ReadPaliAloud.exe', '', SW_HIDE,
        ewWaitUntilTerminated, ResultCode);
   Result := '';
