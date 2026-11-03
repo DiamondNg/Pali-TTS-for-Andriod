@@ -59,6 +59,9 @@ jobs:
           mkdir -p ../dist
           cp app/build/outputs/apk/release/app-release.apk "../dist/Read Pali Aloud v$v.apk"
           ls -l ../dist
+          # Which key signed the APK (private key: SHA-256 starts 1B:A1:26:95)
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then echo "Signing: PRIVATE key (GitHub secrets)"; else echo "Signing: public TESTING key (no secrets)"; fi
+          "$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs "../dist/Read Pali Aloud v$v.apk" | grep -i "SHA-256"
 
       - name: Put the Piper voice on the Release "android-voice" (the app downloads it from there)
         env:
