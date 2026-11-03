@@ -42,9 +42,8 @@ HOW TO USE
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause
          (press Esc first if you are typing in the text box)
        - Dark mode checkbox (top right); by default it follows the Mac
-       - "ññ test" (bottom right): plays aññaṃ, paññā, saññā, rañño,
-         kataññū, aññatra in 6 spellings, each after its number. Choose
-         the number that sounds right; it is then used for all text.
+       - ññ (aññaṃ, paññā...) is read with the spelling the teacher chose
+         in the v2.1 test (number 4).
        - Settings are remembered for next time.
 
 UNINSTALL

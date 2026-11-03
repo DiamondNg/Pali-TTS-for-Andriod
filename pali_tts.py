@@ -26,7 +26,7 @@ CREATE_NO_WINDOW = 0x08000000
 
 INPUT_FILE = None
 for i, a in enumerate(sys.argv[1:], 1):
-    if a == "--input-file" and i < len(sys.argv):
+    if a == "--input-file" and i + 1 < len(sys.argv):
         INPUT_FILE = sys.argv[i + 1]
 
 ENGLISH_MARKERS = {
@@ -123,13 +123,11 @@ def filter_pali_lines(text):
 
 # ── Aksharamukha API ──────────────────────────────────────────────────────────
 # ññ: Aksharamukha writes ಞ್ಞ, which the Kannada voice says like "bb" (aññaṃ →
-# "abbaṃ"). These spellings can be compared with the "ññ test" button; the one
-# chosen there is used for all text.
-NYA_VARIANTS = ["ಞ್ಞ", "ನ್ಯ", "ಞ್ಯ", "ನ್ನ್ಯ", "ನ್ಞ", "ಞ್ಞ್ಯ"]
-NYA_TEST_WORDS = "aññaṃ, paññā, saññā, rañño, kataññū, aññatra"
-nya_choice = 0  # index into NYA_VARIANTS
+# "abbaṃ"). The teacher compared 6 spellings (v2.1 "ññ test") and chose ನ್ನ್ಯ.
+NYA_AKSHARAMUKHA = "ಞ್ಞ"
+NYA_SPOKEN = "ನ್ನ್ಯ"
 
-def to_kannada(text, nya=None):
+def to_kannada(text):
     # aksharamukha handles ṃ (dot-below) but not ṁ (dot-above)
     text = clean_pali(text).replace("ṁ", "ṃ").replace("Ṁ", "Ṃ")
     try:
@@ -138,8 +136,7 @@ def to_kannada(text, nya=None):
         kannada = _to_kannada_online(text)
     for ch in [".", ";", "!", "?"]:
         kannada = kannada.replace(ch, "।")
-    variant = NYA_VARIANTS[nya_choice if nya is None else nya]
-    return kannada.replace(NYA_VARIANTS[0], variant)
+    return kannada.replace(NYA_AKSHARAMUKHA, NYA_SPOKEN)
 
 def _to_kannada_local(text):
     # Offline, via the aksharamukha package (installed by the installer).
@@ -310,6 +307,72 @@ def audio_duration(path):
     except Exception:
         return None
 
+class AfplayPlayer:
+    """macOS: `afplay` process; pause/resume with SIGSTOP/SIGCONT."""
+    def __init__(self, path):
+        self.proc = subprocess.Popen(["afplay", path])
+
+    def done(self):
+        return self.proc.poll() is not None
+
+    def pause(self):
+        os.kill(self.proc.pid, signal.SIGSTOP)
+
+    def resume(self):
+        os.kill(self.proc.pid, signal.SIGCONT)
+
+    def stop(self):
+        if self.proc.poll() is None:
+            self.proc.kill()  # SIGKILL also ends a paused (SIGSTOPped) process
+            self.proc.wait()
+
+
+class MciPlayer:
+    """Windows: Media Control Interface (winmm), built into every Windows.
+    Use from the Tk main thread only."""
+    count = 0
+
+    def __init__(self, path):
+        import ctypes
+        self._send = ctypes.windll.winmm.mciSendStringW
+        self._buf = ctypes.create_unicode_buffer(256)
+        MciPlayer.count += 1
+        self.alias = "pali%d" % MciPlayer.count
+        kind = "waveaudio" if path.lower().endswith(".wav") else "mpegvideo"
+        self._mci('open "%s" type %s alias %s' % (path, kind, self.alias), check=True)
+        self._mci("set %s time format milliseconds" % self.alias)
+        try:
+            self._mci("play %s" % self.alias, check=True)
+        except OSError:
+            self._mci("close %s" % self.alias)
+            raise
+
+    def _mci(self, cmd, check=False):
+        err = self._send(cmd, self._buf, 255, None)
+        if err and check:
+            raise OSError("MCI error %d: %s" % (err, cmd))
+        return "" if err else self._buf.value
+
+    def length(self):
+        try:
+            return int(self._mci("status %s length" % self.alias)) / 1000.0
+        except ValueError:
+            return None
+
+    def done(self):
+        return self._mci("status %s mode" % self.alias) not in ("playing", "paused", "seeking")
+
+    def pause(self):
+        self._mci("pause %s" % self.alias)
+
+    def resume(self):
+        self._mci("resume %s" % self.alias)
+
+    def stop(self):
+        self._mci("stop %s" % self.alias)
+        self._mci("close %s" % self.alias)
+
+
 def fmt_time(seconds):
     seconds = int(seconds)
     return "%d:%02d" % (seconds // 60, seconds % 60)
@@ -327,7 +390,7 @@ class PaliTTSWindow:
         self.root = root
         self.aqua = root.tk.call("tk", "windowingsystem") == "aqua"
 
-        self.proc = None          # running afplay process (macOS)
+        self.player = None        # AfplayPlayer (macOS) / MciPlayer (Windows)
         self.paused = False
         self.busy = False         # transliterating / generating audio
         self.audio_path = None    # last generated audio, reused when settings match
@@ -349,10 +412,6 @@ class PaliTTSWindow:
         mode = settings.get("mode")
         if mode not in [m for _, m in MODES]:
             mode = "pi"
-        global nya_choice
-        nya = settings.get("nya", 0)
-        nya_choice = nya if isinstance(nya, int) and 0 <= nya < len(NYA_VARIANTS) else 0
-        self.test_win = None
         self.en_voices = english_voices()
         en_voice = settings.get("en_voice")
         if en_voice not in self.en_voices:
@@ -452,12 +511,8 @@ class PaliTTSWindow:
         self.time_var = tk.StringVar(value="")
         ttk.Label(status_frame, textvariable=self.time_var,
                   foreground=MUTED, font=("", 9)).pack(side="right")
-        tip_frame = ttk.Frame(root)
-        tip_frame.pack(fill="x", pady=(4, 0))
-        ttk.Label(tip_frame, text="Tip: Space bar = play / pause (Esc leaves the text box)",
-                  foreground=MUTED, font=("", 8)).pack(side="left")
-        ttk.Button(tip_frame, text="ññ test", width=7,
-                   command=self._open_nya_test).pack(side="right")
+        ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
+                  foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
 
         self._on_mode()
         if "dark" in settings:
@@ -557,7 +612,7 @@ class PaliTTSWindow:
                               else "Saved as M4A (Apple audio) at the chosen speed and voices.")
 
     def _current_key(self):
-        """Settings key (mode, segments, speed, voice, English voice, ññ), or None."""
+        """Settings key (mode, segments, speed, voice, English voice), or None."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
             self.status_var.set("Please paste some text first.")
@@ -578,87 +633,7 @@ class PaliTTSWindow:
                                 else "No Pāli text detected.")
             return None
         en_voice = self.en_voice_var.get() if mode != "pi" else None
-        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice, nya_choice)
-
-    # ── ññ pronunciation test ─────────────────────────────────────────────────
-    def _open_nya_test(self):
-        if self.test_win is not None and self.test_win.winfo_exists():
-            self.test_win.lift()
-            return
-        win = self.test_win = tk.Toplevel(self.root)
-        win.title("ññ pronunciation test")
-        win.resizable(False, False)
-        win.configure(padx=20, pady=15)
-        if self.aqua:
-            try:
-                win.tk.call("::tk::unsupported::MacWindowStyle", "appearance", win,
-                            "darkaqua" if self.dark_var.get() else "aqua")
-            except tk.TclError:
-                pass
-        elif self.dark_var.get():
-            win.configure(bg=DARK["bg"])
-        ttk.Label(win, text="Words:  " + NYA_TEST_WORDS,
-                  font=("", 11, "bold")).pack(anchor="w")
-        ttk.Label(win, justify="left", text=(
-            "▶ Play test reads these words in 6 spellings, each after its\n"
-            "number (at the speed and Pāli voice of the main window).\n"
-            "Choose the number that sounds right; it is used from now on.")
-        ).pack(anchor="w", pady=(6, 10))
-        sample = None
-        try:
-            sample = to_kannada("aññaṃ", nya=0)
-        except Exception:
-            pass
-        self.nya_var = tk.IntVar(value=nya_choice)
-        for i, variant in enumerate(NYA_VARIANTS):
-            shown = sample.replace(NYA_VARIANTS[0], variant) if sample else variant
-            label = "%d.  %s%s" % (i + 1, shown, "   (old)" if i == 0 else "")
-            ttk.Radiobutton(win, text=label, variable=self.nya_var, value=i,
-                            command=self._on_nya_choice).pack(anchor="w", pady=1)
-        row = ttk.Frame(win)
-        row.pack(fill="x", pady=(12, 0))
-        ttk.Button(row, text="Close", command=win.destroy).pack(side="left")
-        ttk.Button(row, text=PLAY_TEXT + " test",
-                   command=self._play_nya_test).pack(side="right")
-        ttk.Label(win, text="Pause / Stop with the buttons in the main window.",
-                  foreground=MUTED, font=("", 9)).pack(anchor="w", pady=(8, 0))
-        win.bind("<space>", lambda e: (self._toggle(), "break")[1])
-
-    def _on_nya_choice(self):
-        global nya_choice
-        nya_choice = self.nya_var.get()
-        self.status_var.set("ññ spelling %d chosen." % (nya_choice + 1))
-
-    def _play_nya_test(self):
-        if self.busy:
-            return
-        if not IS_MAC:
-            self.status_var.set("The ññ test works on Mac only for now.")
-            return
-        self._stop()
-        _, rate, mult = SPEEDS[self._speed_index()]
-        voice = self.voice_var.get()
-        key = ("test", rate, voice)
-        self.busy = True
-        self.time_var.set("")
-        self.play_btn.config(state="disabled")
-        self.status_var.set("Preparing ññ test...")
-
-        def run():
-            try:
-                kannada = to_kannada(NYA_TEST_WORDS, nya=0)
-                parts = []
-                for i, variant in enumerate(NYA_VARIANTS):
-                    parts.append(("en", "Number %d." % (i + 1)))
-                    parts.append(("kn", kannada.replace(NYA_VARIANTS[0], variant)))
-                out, secs = build_joined(parts, rate, voice, None,
-                                         round(ENGLISH_WPM * min(mult, 1.0)),
-                                         self._set_status)
-            except Exception:
-                self._after(self._generation_failed, "ññ test failed — check internet.")
-                return
-            self._after(self._generated, key, out, secs)
-        threading.Thread(target=run, daemon=True).start()
+        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice)
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
     def _on_space(self, event):
@@ -683,7 +658,7 @@ class PaliTTSWindow:
             self.time_var.set(fmt_time(played))
 
     def _is_playing(self):
-        return self.proc is not None and self.proc.poll() is None
+        return self.player is not None and not self.player.done()
 
     def _toggle(self):
         if self.busy:
@@ -693,7 +668,7 @@ class PaliTTSWindow:
                 self._pause()
                 return
             # Paused: resume, unless text/speed/voice changed meanwhile
-            if self.play_key[0] == "test" or self._current_key() == self.play_key:
+            if self._current_key() == self.play_key:
                 self._resume()
                 return
             self._stop()
@@ -713,7 +688,7 @@ class PaliTTSWindow:
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
     def _generate(self, key):
-        mode, segs, speed, voice, en_voice, _nya = key
+        mode, segs, speed, voice, en_voice = key
         _, rate, mult = SPEEDS[speed]
         if mode == "pi":  # one MP3 straight from Microsoft
             try:
@@ -765,41 +740,40 @@ class PaliTTSWindow:
         self.play_key = key
         self.paused = False
         self.status_var.set(saved_msg or "Playing...")
-        if IS_MAC:
-            self.proc = subprocess.Popen(["afplay", self.audio_path])
-            self.elapsed, self.started = 0.0, time.monotonic()
-            self._show_time()
-            self.play_btn.config(text=PAUSE_TEXT)
-            self.stop_btn.config(state="normal")
-            self._poll(self.proc)
-        elif IS_WINDOWS:
-            # playsound cannot pause; block the button until playback ends
-            self.play_btn.config(state="disabled")
-            path = self.audio_path
+        try:
+            if IS_MAC:
+                self.player = AfplayPlayer(self.audio_path)
+            elif IS_WINDOWS:
+                self.player = MciPlayer(self.audio_path)
+                if not self.audio_secs:
+                    self.audio_secs = self.player.length()
+            else:
+                self.status_var.set("Playback works on Mac and Windows only.")
+                return
+        except OSError:
+            self.player = None
+            self.status_var.set("Could not play the audio.")
+            return
+        self.elapsed, self.started = 0.0, time.monotonic()
+        self._show_time()
+        self.play_btn.config(text=PAUSE_TEXT)
+        self.stop_btn.config(state="normal")
+        self._poll(self.player)
 
-            def run():
-                from playsound import playsound
-                playsound(path)
-                self._after(self._finished_windows)
-            threading.Thread(target=run, daemon=True).start()
-
-    def _finished_windows(self):
-        self.play_btn.config(state="normal")
-        self.status_var.set("Done.")
-
-    def _poll(self, proc):
-        if proc is not self.proc:
+    def _poll(self, player):
+        if player is not self.player:
             return  # stopped or replaced
-        if proc.poll() is None:
+        if not player.done():
             if not self.paused:
                 self._show_time()
-            self.poll_id = self.root.after(200, self._poll, proc)
+            self.poll_id = self.root.after(200, self._poll, player)
             return
+        player.stop()
         self.started = None
         if self.audio_secs:
             self.elapsed = self.audio_secs
         self._show_time()
-        self.proc = None
+        self.player = None
         self.paused = False
         self.play_btn.config(text=PLAY_TEXT)
         self.stop_btn.config(state="disabled")
@@ -807,7 +781,7 @@ class PaliTTSWindow:
             self.status_var.set("Done.")
 
     def _pause(self):
-        os.kill(self.proc.pid, signal.SIGSTOP)
+        self.player.pause()
         self.elapsed, self.started = self._played_secs(), None
         self.paused = True
         self.play_btn.config(text=RESUME_TEXT)
@@ -815,17 +789,16 @@ class PaliTTSWindow:
 
     def _resume(self):
         self._save_if_requested(self.play_key)
-        os.kill(self.proc.pid, signal.SIGCONT)
+        self.player.resume()
         self.started = time.monotonic()
         self.paused = False
         self.play_btn.config(text=PAUSE_TEXT)
         self.status_var.set("Playing...")
 
     def _stop(self):
-        proc, self.proc = self.proc, None
-        if proc is not None and proc.poll() is None:
-            proc.kill()  # SIGKILL also ends a paused (SIGSTOPped) process
-            proc.wait()
+        player, self.player = self.player, None
+        if player is not None:
+            player.stop()
         self.started = None
         self.time_var.set("")
         self.paused = False
@@ -835,7 +808,7 @@ class PaliTTSWindow:
             self.status_var.set("Stopped.")
 
     def _save_if_requested(self, key):
-        if not self.save_var.get() or key == self.saved_key or key[0] == "test":
+        if not self.save_var.get() or key == self.saved_key:
             return None
         mode, segs, speed = key[0], key[1], key[2]
         words = segs[0][1].split()[:4]
@@ -871,7 +844,6 @@ class PaliTTSWindow:
             "save": bool(self.save_var.get()),
             "mode": self.mode_var.get(),
             "en_voice": self.en_voice_var.get(),
-            "nya": nya_choice,
         }
         if "dark" in self.settings:
             data["dark"] = self.settings["dark"]
@@ -901,8 +873,36 @@ def _unlink(path):
         pass
 
 
+def _windows_setup(root):
+    """Sharp text on high-DPI screens, own taskbar button, app icon."""
+    import ctypes
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("PaliTTS.ReadPaliAloud")
+    except Exception:
+        pass
+    here = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False)
+                                           else __file__))
+    for ico in (os.path.join(here, "AppIcon.ico"),
+                os.path.join(here, "assets", "AppIcon.ico"),
+                os.path.join(getattr(sys, "_MEIPASS", here), "AppIcon.ico")):
+        if os.path.exists(ico):
+            try:
+                root.iconbitmap(default=ico)
+            except tk.TclError:
+                pass
+            break
+
+
 def show_gui(initial_text=""):
+    if IS_WINDOWS:
+        try:  # before Tk starts, so Windows does not blur the window
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
     root = tk.Tk()
+    if IS_WINDOWS:
+        _windows_setup(root)
     PaliTTSWindow(root, initial_text)
     root.mainloop()
 
@@ -927,6 +927,14 @@ def main():
     # Dashes become pauses; quotes are removed later from the Pāli only
     for ch in ["—", "–"]:
         raw = raw.replace(ch, " ")
+
+    dump = os.environ.get("PALI_TTS_DUMP")  # automated tests: record the text received
+    if dump:
+        try:
+            with open(dump, "w", encoding="utf-8") as f:
+                f.write(raw)
+        except OSError:
+            pass
 
     show_gui(initial_text=raw)
 
