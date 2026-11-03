@@ -58,7 +58,13 @@ echo "OK: background player + notification + Stop key"
 adb shell am start -n "$PKG/.MainActivity"
 sleep 3
 ui_dump 1_start
-grep -q "Pāli speed:  1x" shots/1_start.xml || { grep -o 'text="[^"]*"' shots/1_start.xml | head -30; fail "speed label (Python speeds)"; }
+if ! grep -q "Pāli speed:  1x" shots/1_start.xml; then   # below the visible part: scroll down
+  adb shell input swipe 540 1600 540 600 400
+  sleep 2
+  ui_dump 1_start_scrolled
+  adb exec-out screencap -p > shots/1c_scrolled.png
+  grep -q "Pāli speed:  1x" shots/1_start_scrolled.xml || { grep -o 'text="[^"]*"' shots/1_start_scrolled.xml | head -40; fail "speed label (Python speeds)"; }
+fi
 echo "OK: main window"
 
 echo "== 2. Text selected in another app → Read Pāli Aloud (PROCESS_TEXT)"
