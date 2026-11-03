@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
   release:
     types: [published]   # creating a Release on the GitHub website builds + attaches the DMG
-  push:
-    tags: ['v*']
-    branches: ['**']
+  push:               # test builds on work branches only; main/tags are built by the Release
+    branches: ['**', '!main']
     paths:
       - 'Install Pali TTS.command'
       - 'pali_tts.py'
@@ -17,7 +16,11 @@ on:
       - '.github/workflows/build_macos.yml'
 
 permissions:
-  contents: write   # needed to create the GitHub Release on tag pushes
+  contents: write   # needed to attach the DMG to the Release
+
+concurrency:        # a new push stops the older run of the same branch
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:

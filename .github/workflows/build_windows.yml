@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
   release:
     types: [published]   # creating a Release on the GitHub website builds + attaches the installer
-  push:
-    tags: ['v*']
-    branches: ['**']
+  push:               # test builds on work branches only; main/tags are built by the Release
+    branches: ['**', '!main']
     paths:
       - 'pali_tts.py'
       - 'windows/**'
@@ -17,7 +16,7 @@ on:
       - '.github/workflows/build_windows.yml'
 
 permissions:
-  contents: write   # needed to create the GitHub Release on tag pushes
+  contents: write   # needed to attach the installer to the Release
 
 concurrency:        # a new push stops the older run of the same branch
   group: windows-${{ github.ref }}
