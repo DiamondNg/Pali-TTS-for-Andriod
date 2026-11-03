@@ -13,6 +13,7 @@ on:
       - 'requirements-macos.txt'
       - 'assets/**'
       - '.github/scripts/**'
+      - '!.github/scripts/android_*'   # Android-only scripts: no Mac build
       - '.github/workflows/build_macos.yml'
 
 permissions:
