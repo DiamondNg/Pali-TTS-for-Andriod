@@ -9,6 +9,7 @@ on:
     paths:
       - 'pali_tts.py'
       - 'android/**'
+      - '.github/scripts/get_piper_model.sh'
       - '.github/scripts/android_*'
       - '.github/workflows/build_android.yml'
 
@@ -40,6 +41,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Get the offline Piper voice (engine + Kannada model)
+        run: bash .github/scripts/android_get_voice.sh
 
       - name: Build APK
         working-directory: android

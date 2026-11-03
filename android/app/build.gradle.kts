@@ -73,6 +73,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    androidResources {
+        noCompress += "onnx"  // the voice model is read straight from the APK
+    }
     buildFeatures {
         buildConfig = true
     }
@@ -110,4 +113,6 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.media:media:1.7.0")  // notification / lock-screen player
+    // Offline Piper voice engine; made by .github/scripts/android_get_voice.sh
+    implementation(files("libs/sherpa-onnx.aar"))
 }

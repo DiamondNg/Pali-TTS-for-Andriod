@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private val paliVoices = listOf(
         "Male · Microsoft (online)" to "kn-IN-GaganNeural",
         "Female · Microsoft (online)" to "kn-IN-SapnaNeural",
+        "Male · Piper, built in (offline)" to PIPER,
         "Kannada · Google voice on this phone (offline)" to ANDROID_KANNADA,
     )
     private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_tts.py
@@ -355,7 +356,7 @@ class MainActivity : AppCompatActivity() {
         busy = true
         playBtn.isEnabled = false
         time.text = ""
-        status.text = if (voice == ANDROID_KANNADA) "Generating…" else "Connecting…"
+        status.text = if (voice in OFFLINE_VOICES) "Generating…" else "Connecting…"
         val shownText = text.text.toString()
         worker.execute {
             try {
@@ -378,7 +379,7 @@ class MainActivity : AppCompatActivity() {
                 fail(e.message ?: "Voice error")
             } catch (e: Throwable) {
                 Log.e(TAG, "generation failed", e)
-                fail(if (voice == ANDROID_KANNADA && enV == null) "Audio generation failed."
+                fail(if (voice in OFFLINE_VOICES && enV == null) "Audio generation failed."
                      else "Audio generation failed — check internet.")
             }
         }
@@ -405,7 +406,14 @@ class MainActivity : AppCompatActivity() {
         val kn = parts.indices.filter { parts[it].first == "kn" }
         if (kn.isNotEmpty()) {
             setStatus("Generating Pāli audio…")
-            if (key.voice == ANDROID_KANNADA) {
+            if (key.voice == PIPER) {
+                val factor = bridge.callAttr("rate_factor", key.speed).toFloat()
+                for (i in kn) {
+                    val f = File(work, "${tag}_$i.wav")
+                    PiperVoice.synthesize(this, parts[i].second, factor, f)
+                    files[i] = listOf(f)
+                }
+            } else if (key.voice == ANDROID_KANNADA) {
                 val v = kannada.kannadaVoice()
                 val factor = bridge.callAttr("rate_factor", key.speed).toFloat()
                 for (i in kn) files[i] = kannada.synthesize(parts[i].second, v, factor,
@@ -603,6 +611,13 @@ class MainActivity : AppCompatActivity() {
                 val m = File(cacheDir, "tj.m4a")
                 AudioTools.toM4a(j, m)
                 Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
+                // Offline Piper voice (the whole chain: Kannada → eSpeak NG → model → WAV)
+                val pv = File(cacheDir, "piper.wav")
+                val kn = bridge.callAttr("kannada", "Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā.").toString()
+                PiperVoice.synthesize(this, kn, 1f, pv)
+                val secs = AudioTools.decodeMono(pv).samples.size / AudioTools.RATE.toDouble()
+                Log.i(TAG, "SELFTEST piper %.2f s".format(secs))
+                if (secs < 1.0) throw IllegalStateException("Piper audio too short")
                 // Background player: plays the joined (silent) file → notification appears
                 val tone = File(cacheDir, "tone.wav").also {
                     AudioTools.writeWav(it, ShortArray(24000 * 20) { i -> (Math.sin(i * 0.06) * 3000).toInt().toShort() })
@@ -621,6 +636,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val TAG = "PaliTTS"
         const val ANDROID_KANNADA = "android-kn"
+        const val PIPER = "piper"
+        val OFFLINE_VOICES = setOf(PIPER, ANDROID_KANNADA)
         const val GOOGLE_TTS = "com.google.android.tts"
         const val TTS_SETTINGS_ACTION = "com.android.settings.TTS_SETTINGS"
         val KANNADA_STEPS = """
@@ -645,6 +662,7 @@ class MainActivity : AppCompatActivity() {
 
             PĀLI VOICE
             • Microsoft Male/Female: the best quality; needs internet.
+            • Male · Piper, built in: works offline on every phone (the same voice as on the computer). Voice: micahchoo/piper-kn (CC BY 4.0), engine sherpa-onnx.
             • Kannada · Google voice on this phone: works offline once installed. Tap "Offline Kannada voice…" under the Pāli voice for the steps:
               Phone Settings → search "Text-to-speech" → ⚙ next to "Speech Services by Google" → Install voice data → Kannada (ಕನ್ನಡ) → download.
 

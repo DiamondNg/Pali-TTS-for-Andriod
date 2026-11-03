@@ -85,8 +85,16 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   secrets ANDROID_KEYSTORE_BASE64/_PASSWORD, ANDROID_KEY_ALIAS/_PASSWORD. CI
   `build_android.yml` builds APK "Read Pali Aloud v<ver>.apk", emulator test
   `.github/scripts/android_test.sh`. Android SDK/Maven blocked in sandbox: compile only in CI.
-  Open questions to owner: see chat 2026-11-03 (distribution, devices, background playback,
-  Piper offline, iOS).
+  Owner answers (2026-11-03): public users, Android first; APK on GitHub Releases for now;
+  private key later (explained); background player YES → `Playback.kt` (app-wide MediaPlayer,
+  focus/noisy) + `PlaybackService.kt` (mediaPlayback foreground service, MediaSessionCompat,
+  MediaStyle notification); Python/voices/worker live in `Session` (window rebuild crashed
+  before). Piper YES → `PiperVoice.kt` with sherpa-onnx **1.13.8** AAR (2.x dropped eSpeak NG),
+  fetched + model converted by `.github/scripts/android_get_voice.sh` (sherpa's
+  add_meta_data.py; espeak-ng-data from sherpa's amy package, only kn_dict) into gitignored
+  `app/libs` + `assets/piper`. Google Kannada voice: own TTS instance on engine
+  com.google.android.tts + "Offline Kannada voice…" dialog (install intents) + Help. Autoplay
+  on shared text: yes. App ID explained, owner to confirm.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider

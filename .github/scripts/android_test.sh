@@ -30,6 +30,7 @@ adb logcat -d -s PaliTTS:* python.stdout:* python.stderr:* AndroidRuntime:* | te
 grep -q "SELFTEST OK" shots/selftest.log || fail "selftest"
 grep -q "ನಮೋ ತಸ್ಸ ಭಗವತೋ" shots/selftest.log || fail "Kannada transliteration"
 grep -q '"nya": true' shots/selftest.log || fail "ññ spelling"
+grep -q "SELFTEST piper" shots/selftest.log || fail "offline Piper voice"
 grep -q '"en", "Homage to the Blessed One' shots/selftest.log || fail "translation line not detected"
 sleep 2
 adb exec-out screencap -p > shots/1_start.png
