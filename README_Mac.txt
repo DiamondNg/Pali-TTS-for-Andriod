@@ -13,7 +13,7 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Open "Read Pāli Aloud v2.5.dmg", then double-click "Install Pali TTS.command"
+  1. Open "Read Pāli Aloud v2.6.dmg", then double-click "Install Pali TTS.command"
      A Terminal window opens and runs the installer automatically.
      If macOS says it "cannot verify" the file (it is not Apple-signed):
      click Done, then System Settings → Privacy & Security → scroll down

@@ -11,7 +11,7 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Double-click "Read Pāli Aloud v2.5.exe" (the installer).
+  1. Double-click "Read Pāli Aloud v2.6.exe" (the installer).
      The installer is not signed, so Windows may show
      "Windows protected your PC": click "More info" → "Run anyway".
   2. Click through the installer (no administrator password needed;

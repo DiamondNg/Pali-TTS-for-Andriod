@@ -637,7 +637,7 @@ def fmt_time(seconds):
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
 MUTED = "#808080"  # secondary text: readable on light and dark backgrounds
-APP_VERSION = "2.5"
+APP_VERSION = "2.6"
 # Shortcut that opens the window with the selected text (set by the installers)
 SHORTCUT = "Cmd+Shift+Y" if IS_MAC else "Ctrl+Shift+Y"
 
@@ -827,16 +827,22 @@ class PaliTTSWindow:
 
         # ── Size (remembered; never smaller than the original) + position ───
         root.update_idletasks()
-        min_w, min_h = root.winfo_reqwidth(), root.winfo_reqheight()
-        root.minsize(min_w, min_h)
-        size = settings.get("size")
+        self.min_size = (root.winfo_reqwidth(), root.winfo_reqheight())
+        root.minsize(*self.min_size)
+        self._place(*self._remembered_size())
+        if tray is None:
+            self._present(bool(initial_text))
+
+    def _remembered_size(self):
+        """The saved window size, never smaller than the packed size or bigger than the screen."""
+        root = self.root
+        min_w, min_h = self.min_size
+        size = self.settings.get("size")
         try:
             w, h = max(min_w, int(size[0])), max(min_h, int(size[1]))
         except (TypeError, ValueError, IndexError):
             w, h = min_w, min_h
-        self._place(min(w, root.winfo_screenwidth()), min(h, root.winfo_screenheight() - 70))
-        if tray is None:
-            self._present(bool(initial_text))
+        return min(w, root.winfo_screenwidth()), min(h, root.winfo_screenheight() - 70)
 
     def _place(self, w, h):
         """Size w×h, centred on the mouse pointer, whole window on screen."""
@@ -873,8 +879,9 @@ class PaliTTSWindow:
             elif hidden:
                 self.status_var.set("No selected text found: paste the text here.")
         if hidden:  # appear where the mouse is, at the remembered size
-            self.root.update_idletasks()
-            self._place(self.root.winfo_width(), self.root.winfo_height())
+            # (not winfo_width/height: a window that was never shown reports 1x1,
+            # which minsize turned into the smallest size)
+            self._place(*self._remembered_size())
         self._present(bool(text))
         if autoplay and text and not self.busy:
             self._start()
