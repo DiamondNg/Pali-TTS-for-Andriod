@@ -48,7 +48,7 @@ function Titles { Get-Process ReadPaliAloud -ErrorAction SilentlyContinue |
   Where-Object MainWindowTitle | ForEach-Object { "window: '$($_.MainWindowTitle)'" } }
 function StopAll { Get-Process ReadPaliAloud -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 1 }
 function Dumped { if (Test-Path $env:PALI_TTS_DUMP) { Get-Content $env:PALI_TTS_DUMP -Raw -Encoding UTF8 } else { "" } }
-function PopupVisible { $h = [K]::FindWindow("PaliTTS.Popup", $null); ($h -ne [IntPtr]::Zero) -and [K]::IsWindowVisible($h) }
+function PopupVisible { $h = [K]::FindWindow("PaliTTS.Popup", [NullString]::Value); ($h -ne [IntPtr]::Zero) -and [K]::IsWindowVisible($h) }
 
 # All Pāli letters with diacritics must arrive unchanged
 $text = "Evaṃ me sutaṃ ekaṁ samayaṃ bhagavā sāvatthiyaṃ viharati aṅga aññaṃ paññā kaṭhina ḍaṇḍa paṇṇa ḷ ī ū"
@@ -83,7 +83,7 @@ Titles
 Shot "window"
 if ((Dumped) -ne $text) { "FAIL: text not received: '$(Dumped)'"; $fail = 1 } else { "OK: window got the text" }
 if (-not (Titles | Select-String "Read Pāli Aloud")) { "FAIL: no 'Read Pāli Aloud' window"; $fail = 1 }
-$tray = [K]::FindWindow("PaliTTS.TrayWindow", $null)
+$tray = [K]::FindWindow("PaliTTS.TrayWindow", [NullString]::Value)
 if ($tray -eq [IntPtr]::Zero) { "FAIL: no tray window"; $fail = 1 } else { "OK: tray running" }
 
 # 2) Close hides the window; the app keeps running
@@ -117,7 +117,7 @@ TestForm {
     2 { $script:sawPopup = PopupVisible; Shot "popup"; [K]::Key(0x1B) }
     3 { $script:escHid = -not (PopupVisible); [K]::Drag(115, 148, 900) }
     4 {
-      $h = [K]::FindWindow("PaliTTS.Popup", $null); $r = New-Object "K+RECT"
+      $h = [K]::FindWindow("PaliTTS.Popup", [NullString]::Value); $r = New-Object "K+RECT"
       if ((PopupVisible) -and [K]::GetWindowRect($h, [ref]$r)) {
         Shot "popup2"; [K]::Click([int](($r.L + $r.R) / 2), [int](($r.T + $r.B) / 2)) }
     }
@@ -132,7 +132,7 @@ if ((Dumped).Length -gt 10 -and $text.StartsWith((Dumped).Substring(0, 10))) { "
 else { "FAIL: button did not pass the selection"; $fail = 1 }
 
 # 5) Tray menu → Exit quits completely
-$tray = [K]::FindWindow("PaliTTS.TrayWindow", $null)
+$tray = [K]::FindWindow("PaliTTS.TrayWindow", [NullString]::Value)
 [K]::PostMessage($tray, 0x0111, [IntPtr]4, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, Exit
 Start-Sleep 4
 if (Get-Process ReadPaliAloud -ErrorAction SilentlyContinue) { "FAIL: Exit did not quit"; $fail = 1 } else { "OK: Exit quit the app" }
