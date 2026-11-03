@@ -130,7 +130,7 @@ jobs:
           "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav")); p.wav_to_mp3("j.wav", "j.mp3"); v = p.system_voices(); print("auto voices:", {l: p.pick_voice(v, l) for l in ["zh", "ja", "ms", "es", "vi", "th"]})'
           afinfo j.mp3 | grep -i -E "duration|format"
           defaults read pbs NSServicesStatus | tee "$RUNNER_TEMP/pbs.txt" || true
-          grep -q '"@^o"' "$RUNNER_TEMP/pbs.txt" && echo "OK: shortcut Control-Command-O"
+          grep -q '"@$y"' "$RUNNER_TEMP/pbs.txt" && echo "OK: shortcut Shift-Command-Y"
 
       - name: GUI screenshot test
         run: |
@@ -169,16 +169,22 @@ jobs:
           path: shots/
           retention-days: 7
 
+      - name: Name the DMG "Read Pāli Aloud v<version>.dmg"
+        run: |
+          V=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' pali_tts.py)
+          cp PaliTTS-macOS.dmg "Read Pāli Aloud v$V.dmg"
+          ls -l *.dmg
+
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: PaliTTS-macOS
-          path: PaliTTS-macOS.dmg
+          path: Read*Aloud v*.dmg
           retention-days: 30
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: PaliTTS-macOS.dmg
+          files: Read*Aloud v*.dmg
           generate_release_notes: true

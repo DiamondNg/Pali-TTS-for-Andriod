@@ -3,3 +3,4 @@ aksharamukha
 certifi
 miniaudio
 lameenc
+comtypes

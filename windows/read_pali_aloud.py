@@ -1,8 +1,10 @@
 """Windows entry point of ReadPaliAloud.exe (built with PyInstaller).
 
-  ReadPaliAloud.exe                      open the window
+  ReadPaliAloud.exe                      open the window (and run in the tray)
   ReadPaliAloud.exe --input-file F       open the window with the text in F
-  ReadPaliAloud.exe --hotkey             background helper: Ctrl+Alt+P reads the selection
+  ReadPaliAloud.exe --tray               run in the tray only (Windows startup);
+                                         --hotkey (v2.2–v2.4) does the same
+  If it is already running, the running copy shows its window instead.
   ReadPaliAloud.exe --selftest OUT       write a check of the bundled parts to OUT (CI)
 """
 import sys
@@ -39,6 +41,10 @@ def selftest(out_path):
         pali_tts.to_wav(os.path.join(work, "j.mp3"), os.path.join(work, "back.wav"))
         lines.append("auto voices: %r" % {lang: pali_tts.pick_voice(voices, lang)
                                           for lang in ["en", "zh", "ja", "ms", "es"]})
+        import tray, uia  # noqa: F401  (UI Automation wrappers must be bundled)
+        uia._client()
+        lines.append("UI Automation: %s" % uia.UIA.__name__)
+        lines.append("help: %d characters" % len(pali_tts.help_text(tray=True)))
         lines.append("SELFTEST OK")
     except Exception:
         lines.append(traceback.format_exc())
@@ -48,14 +54,15 @@ def selftest(out_path):
 
 def main():
     args = sys.argv[1:]
-    if "--hotkey" in args:
-        import hotkey
-        hotkey.main()
-    elif "--selftest" in args:
+    if "--selftest" in args:
         selftest(args[args.index("--selftest") + 1])
+        return
+    import tray
+    if "--tray" in args or "--hotkey" in args:
+        tray.main(show=False)
     else:
         import pali_tts
-        pali_tts.main()
+        tray.main(show=True, text=pali_tts.read_input())
 
 
 if __name__ == "__main__":

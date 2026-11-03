@@ -42,13 +42,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-windows.txt pyinstaller
+          # UI Automation wrappers (comtypes makes them from Windows' type library)
+          python -c "import comtypes.client as c; c.GetModule('UIAutomationCore.dll'); from comtypes.gen import UIAutomationClient; print('UIA wrappers OK')"
 
       - name: Build ReadPaliAloud.exe (PyInstaller)
         run: |
           pyinstaller --noconfirm --clean --windowed --name ReadPaliAloud `
             --icon assets/AppIcon.ico --add-data "assets/AppIcon.ico;." `
             --paths . --paths windows `
-            --hidden-import pali_tts --hidden-import hotkey `
+            --hidden-import pali_tts --hidden-import hotkey --hidden-import tray --hidden-import uia `
+            --collect-submodules comtypes `
             --collect-all aksharamukha --collect-all edge_tts --collect-all miniaudio --hidden-import _cffi_backend --hidden-import lameenc --collect-data certifi `
             windows/read_pali_aloud.py
           "{0:N0} MB" -f ((Get-ChildItem dist/ReadPaliAloud -Recurse | Measure-Object Length -Sum).Sum / 1MB)
@@ -60,18 +63,24 @@ jobs:
           Get-Content "$env:RUNNER_TEMP\selftest.txt" -Encoding UTF8
           if (-not (Select-String -Path "$env:RUNNER_TEMP\selftest.txt" -Pattern "SELFTEST OK" -Quiet)) { exit 1 }
 
-      - name: Build PaliTTS-Setup.exe (Inno Setup)
+      - name: Build "Read Pāli Aloud v<version>.exe" (Inno Setup)
         run: |
+          # version = APP_VERSION in pali_tts.py
+          $v = (Select-String -Path pali_tts.py -Pattern '^APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
+          "version $v"
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc windows\PaliTTS.iss
+          & $iscc "/DAppVersion=$v" windows\PaliTTS.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Get-Item dist\PaliTTS-Setup.exe | Format-Table Name, Length
+          $setup = "dist\Read Pāli Aloud v$v.exe"
+          if (-not (Test-Path $setup)) { "FAIL: $setup not built"; exit 1 }
+          Get-Item $setup | Format-Table Name, Length
+          "SETUP=$setup" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install silently and check
         run: |
-          # WaitForExit, not -Wait: -Wait also waits for the Ctrl+Alt+P helper the installer starts
-          $p = Start-Process dist\PaliTTS-Setup.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
+          # WaitForExit, not -Wait: -Wait also waits for the tray app the installer starts
+          $p = Start-Process $env:SETUP -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
           if (-not $p.WaitForExit(300000)) { "FAIL: installer still running after 5 min"; exit 1 }
           "installer exit code: $($p.ExitCode)"
           $app = "$env:LOCALAPPDATA\Programs\Read Pali Aloud"
@@ -79,11 +88,14 @@ jobs:
           $sm = [Environment]::GetFolderPath("Programs"); $st = [Environment]::GetFolderPath("Startup")
           Get-ChildItem $sm, $st -Filter "*Pāli*" | Format-Table FullName
           if (-not (Test-Path "$sm\Read Pāli Aloud.lnk")) { "FAIL: no Start menu entry"; exit 1 }
-          if (-not (Test-Path "$st\Read Pāli Aloud shortcut.lnk")) { "FAIL: no Startup entry"; exit 1 }
+          if (Test-Path "$st\Read Pāli Aloud shortcut.lnk") { "FAIL: old Startup shortcut still there"; exit 1 }
+          $run = Get-ItemPropertyValue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" "Read Pali Aloud" -ErrorAction SilentlyContinue
+          "Run key: $run"
+          if ($run -notlike "*ReadPaliAloud.exe*--tray") { "FAIL: no Run on startup entry"; exit 1 }
           Start-Sleep 3
           Get-Process ReadPaliAloud -ErrorAction SilentlyContinue | Format-Table Id, ProcessName
 
-      - name: GUI + Ctrl+Alt+P test
+      - name: GUI, tray, Ctrl+Shift+Y and floating button test
         run: .github/scripts/win_gui_test.ps1
 
       - name: Uninstall test
@@ -93,6 +105,7 @@ jobs:
           if (-not $p.WaitForExit(300000)) { "FAIL: uninstaller still running after 5 min"; exit 1 }
           Start-Sleep 3
           if (Test-Path "$env:LOCALAPPDATA\Programs\Read Pali Aloud\ReadPaliAloud.exe") { "FAIL: not uninstalled"; exit 1 }
+          if (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Read Pali Aloud" -ErrorAction SilentlyContinue) { "FAIL: Run key left"; exit 1 }
           "OK: uninstalled"
 
       - name: Upload screenshots
@@ -107,12 +120,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PaliTTS-Windows
-          path: dist/PaliTTS-Setup.exe
+          path: dist/Read*Aloud v*.exe
           retention-days: 30
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/PaliTTS-Setup.exe
+          files: dist/Read*Aloud v*.exe
           generate_release_notes: true
