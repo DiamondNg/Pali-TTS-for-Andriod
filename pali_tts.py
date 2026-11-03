@@ -396,6 +396,7 @@ def _windows_voices():
 PREFERRED_REGION = {"en": "en-US", "zh": "zh-CN", "pt": "pt-BR", "es": "es-ES",
                     "fr": "fr-FR", "de": "de-DE", "ar": "ar-SA", "ms": "ms-MY"}
 SIMILAR_LANGUAGE = {"ms": ["id"], "id": ["ms"], "uk": ["ru"]}
+ELOQUENCE_VOICES = {"Eddy", "Flo", "Grandma", "Grandpa", "Reed", "Rocko", "Sandy", "Shelley"}
 
 def pick_voice(voices, lang):
     """Voice id for language code `lang` from [(label, id)] ("" = system default).
@@ -407,7 +408,10 @@ def pick_voice(voices, lang):
                  if label.lower().split("-")[0].split(" ")[0] == code]
         if match:
             pref = PREFERRED_REGION.get(code, "").lower()
-            match.sort(key=lambda v: not v[0].lower().startswith(pref) if pref else 0)
+            # Preferred country first; Apple's robotic "Eloquence" voices
+            # (Eddy, Flo, Reed... named "Eddy (Chinese (China mainland))") last
+            match.sort(key=lambda v: (bool(pref) and not v[0].lower().startswith(pref),
+                                      "(" in v[1] or v[1] in ELOQUENCE_VOICES))
             return match[0][1]
     return ""
 
