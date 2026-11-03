@@ -112,6 +112,7 @@ jobs:
           mkdir -p "$STAGE"
           cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
+          cp LICENSE "$STAGE/License.txt"
           mkdir -p "$STAGE/.assets"
           cp assets/AppIcon.icns "$STAGE/.assets/"
           mkdir -p "$STAGE/.assets/voices"

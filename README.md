@@ -1,5 +1,7 @@
 # Read Pāli Aloud (Pāḷi TTS)
 
+*Made by Āyasmā Paññādhammika · free software under the [GNU GPL 3.0 or later](LICENSE)*
+
 Reads Pāḷi text aloud. Pāḷi in Roman script (IAST) is converted to Kannada script with
 [Aksharamukha](https://aksharamukha.appspot.com) and spoken by Microsoft's Kannada neural voices
 (`kn-IN-GaganNeural` male / `kn-IN-SapnaNeural` female, via `edge-tts`, needs internet), or
@@ -70,14 +72,20 @@ tests); a `v*` tag or a published Release attaches them to the Release. The vers
 
 ## Credits and licences
 
+Read Pāli Aloud — Copyright © 2026 Āyasmā Paññādhammika. Free software: you can share and change
+it under the [GNU General Public License 3.0 or later](LICENSE). It comes with no warranty.
+
+Included software and data:
 - **Offline Piper voice** `kn_IN-syspin_male-medium` by micahchoo
   ([huggingface.co/micahchoo/piper-kn](https://huggingface.co/micahchoo/piper-kn)), trained on the
   SYSPIN Kannada male speaker — licensed under
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Bundled unchanged.
 - [Piper](https://github.com/OHF-voice/piper1-gpl) speech engine (`piper-tts`) and eSpeak NG:
   GNU GPL 3.0 or later.
-- [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (transliteration),
-  [edge-tts](https://github.com/rany2/edge-tts) (Microsoft online voices).
+- [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (Pāḷi → Kannada script):
+  GNU AGPL 3.0.
+- [edge-tts](https://github.com/rany2/edge-tts) (Microsoft online voices) and lameenc (MP3):
+  LGPL 3.0; onnxruntime, miniaudio, comtypes: MIT; certifi: MPL 2.0; Python: PSF licence.
 
 ## Network domains (filtered networks)
 

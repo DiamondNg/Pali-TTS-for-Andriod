@@ -21,4 +21,4 @@ for name in os.listdir(data):
         os.remove(os.path.join(data, name))
 assert os.path.exists(os.path.join(data, "kn_dict")), "no Kannada dictionary"
 after = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs)
-print("piper: %.1f MB → %.1f MB" % (before / 1e6, after / 1e6))
+print("piper: %.1f MB -> %.1f MB" % (before / 1e6, after / 1e6))
