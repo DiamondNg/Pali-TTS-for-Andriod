@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Read Pāli Aloud</string>
+    <string name="hint_text">Paste or type Pāli text here (translations may be mixed in)…</string>
+    <string name="read">Read</string>
+    <string name="mode_pi">Pāli</string>
+    <string name="mode_en">Translation</string>
+    <string name="mode_both">Both</string>
+    <string name="pali_voice">Pāli voice</string>
+    <string name="translation_voice">Translation voice</string>
+    <string name="play">▶  Play</string>
+    <string name="resume">▶  Resume</string>
+    <string name="pause">⏸  Pause</string>
+    <string name="stop">■  Stop</string>
+    <string name="save">Save audio…</string>
+    <string name="paste">Paste</string>
+    <string name="clear">Clear</string>
+    <string name="help">Help</string>
+</resources>

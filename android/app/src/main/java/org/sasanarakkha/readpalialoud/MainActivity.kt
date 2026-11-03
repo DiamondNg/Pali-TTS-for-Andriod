@@ -1,0 +1,663 @@
+package org.sasanarakkha.readpalialoud
+
+import android.content.BroadcastReceiver
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.util.Log
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.Spinner
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.chaquo.python.PyObject
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.slider.Slider
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.util.Locale
+import java.util.concurrent.Executors
+
+class MainActivity : AppCompatActivity() {
+
+    // Pāli voices: (label, id). Same Microsoft voices as on the desktop.
+    private val paliVoices = listOf(
+        "Male · Microsoft (online)" to "kn-IN-GaganNeural",
+        "Female · Microsoft (online)" to "kn-IN-SapnaNeural",
+        "Kannada · this phone's voice (offline)" to ANDROID_KANNADA,
+    )
+    private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_tts.py
+    private var translationSpeeds = listOf(0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0)
+    private var enVoices = listOf(AUTO_LABEL to AUTO_VOICE, SYSTEM_LABEL to "")
+
+    private lateinit var text: TextView
+    private lateinit var mode: MaterialButtonToggleGroup
+    private lateinit var paliVoice: Spinner
+    private lateinit var paliSpeed: Slider
+    private lateinit var paliSpeedLabel: TextView
+    private lateinit var enVoice: Spinner
+    private lateinit var enVoiceLabel: TextView
+    private lateinit var enSpeed: Slider
+    private lateinit var enSpeedLabel: TextView
+    private lateinit var status: TextView
+    private lateinit var time: TextView
+    private lateinit var playBtn: Button
+    private lateinit var stopBtn: Button
+    private lateinit var saveBtn: Button
+
+    private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
+    private val ui = Handler(Looper.getMainLooper())
+    private val worker = Executors.newSingleThreadExecutor()  // Python + voices, in order
+    private lateinit var bridge: PyObject
+    private lateinit var phone: PhoneVoices
+
+    /** What was asked for: same key → the audio already made is reused. */
+    private data class Key(val mode: String, val segs: List<Pair<String, String>>,
+                           val speed: Int, val voice: String, val enVoice: String?,
+                           val enSpeed: Double?)
+
+    private var busy = false
+    private var player: MediaPlayer? = null
+    private var paused = false
+    private var playKey: Key? = null
+    private var audio: File? = null
+    private var audioKey: Key? = null
+    private var counter = 0
+    private var focusRequest: AudioFocusRequest? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        findViews()
+        // Android 15 draws behind the status/navigation bars and the keyboard: keep clear of them
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        toolbar.inflateMenu(R.menu.main)
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_paste -> paste()
+                R.id.action_clear -> { stop(); text.text = "" }
+                R.id.action_help -> showHelp()
+            }
+            true
+        }
+
+        setUpControls()
+        restoreSettings()
+        phone = PhoneVoices(this)
+        status.text = "Starting…"
+        worker.execute {
+            try {
+                if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+                bridge = Python.getInstance().getModule("bridge")
+                val sp = JSONObject(bridge.callAttr("speeds").toString())
+                val labels = sp.getJSONArray("labels").let { a -> (0 until a.length()).map { a.getString(it) } }
+                val tr = sp.getJSONArray("translation").let { a -> (0 until a.length()).map { a.getDouble(it) } }
+                ui.post {
+                    paliSpeeds = labels
+                    translationSpeeds = tr
+                    updateSpeedLabels()
+                    if (status.text == "Starting…") status.text = ""
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Python did not start", e)
+                ui.post { status.text = "Could not start: ${e.message}" }
+            }
+        }
+        worker.execute { loadPhoneVoices() }
+        handleIntent(intent, savedInstanceState == null)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent, true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        saveSettings()
+    }
+
+    override fun onDestroy() {
+        releasePlayer()
+        phone.shutdown()
+        worker.shutdownNow()
+        super.onDestroy()
+    }
+
+    private fun findViews() {
+        text = findViewById(R.id.text)
+        mode = findViewById(R.id.mode)
+        paliVoice = findViewById(R.id.pali_voice)
+        paliSpeed = findViewById(R.id.pali_speed)
+        paliSpeedLabel = findViewById(R.id.pali_speed_label)
+        enVoice = findViewById(R.id.en_voice)
+        enVoiceLabel = findViewById(R.id.en_voice_label)
+        enSpeed = findViewById(R.id.en_speed)
+        enSpeedLabel = findViewById(R.id.en_speed_label)
+        status = findViewById(R.id.status)
+        time = findViewById(R.id.time)
+        playBtn = findViewById(R.id.play)
+        stopBtn = findViewById(R.id.stop)
+        saveBtn = findViewById(R.id.save)
+    }
+
+    // ── Text from other apps ─────────────────────────────────────────────────
+    /** Select text → "Read Pāli Aloud", or Share → Read Pāli Aloud: show it and start reading. */
+    private fun handleIntent(intent: Intent?, fresh: Boolean) {
+        if (intent == null) return
+        if (intent.getBooleanExtra("selftest", false)) {
+            selftest()
+            return
+        }
+        if (!fresh) return
+        val incoming = when (intent.action) {
+            Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
+            Intent.ACTION_SEND -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            else -> null
+        }?.toString()
+        if (incoming.isNullOrBlank()) return
+        stop()
+        text.text = incoming.trim()
+        worker.execute {  // after Python has started
+            val prepared = try { bridge.callAttr("prepare_text", incoming).toString() } catch (e: Throwable) { incoming.trim() }
+            ui.post {
+                text.text = prepared
+                start()
+            }
+        }
+    }
+
+    private fun paste() {
+        val clip = (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+        val pasted = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+        if (!pasted.isNullOrBlank()) {
+            stop()
+            text.text = pasted.trim()
+        }
+    }
+
+    // ── Controls and settings ─────────────────────────────────────────────────
+    private fun setUpControls() {
+        paliVoice.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            paliVoices.map { it.first })
+        setEnVoiceList()
+        paliSpeed.setLabelFormatter { paliSpeeds.getOrElse(it.toInt()) { "" } }
+        enSpeed.setLabelFormatter { speedLabel(translationSpeeds.getOrElse(it.toInt()) { 1.0 }) }
+        paliSpeed.addOnChangeListener { _, _, _ -> updateSpeedLabels() }
+        enSpeed.addOnChangeListener { _, _, _ -> updateSpeedLabels() }
+        mode.addOnButtonCheckedListener { _, _, _ -> onModeChanged() }
+        playBtn.setOnClickListener { toggle() }
+        stopBtn.setOnClickListener { stop() }
+        saveBtn.setOnClickListener { save() }
+        saveBtn.isEnabled = false
+        updateSpeedLabels()
+    }
+
+    private fun setEnVoiceList() {
+        val keep = selectedEnVoiceId() ?: prefs.getString("en_voice", AUTO_VOICE)
+        enVoice.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            enVoices.map { it.first })
+        enVoice.setSelection(enVoices.indexOfFirst { it.second == keep }.coerceAtLeast(0))
+    }
+
+    private fun selectedEnVoiceId(): String? =
+        if (!::enVoice.isInitialized || enVoice.adapter == null) null
+        else enVoices.getOrNull(enVoice.selectedItemPosition)?.second
+
+    private fun loadPhoneVoices() {
+        if (!phone.awaitReady()) return
+        val list = phone.voices().map { phone.label(it) to it.name }.sortedBy { it.first }
+        ui.post {
+            enVoices = listOf(AUTO_LABEL to AUTO_VOICE, SYSTEM_LABEL to "") + list
+            setEnVoiceList()
+        }
+    }
+
+    /** 1.0 → "1x", 0.75 → "0.75x" (as speed_label() in pali_tts.py) */
+    private fun speedLabel(x: Double) =
+        (if (x == Math.floor(x)) x.toLong().toString() else x.toString()) + "x"
+
+    private fun updateSpeedLabels() {
+        paliSpeedLabel.text = "Pāli speed:  " + paliSpeeds.getOrElse(paliSpeed.value.toInt()) { "" }
+        enSpeedLabel.text = "Translation speed:  " + speedLabel(currentEnSpeed())
+    }
+
+    private fun currentEnSpeed() = translationSpeeds.getOrElse(enSpeed.value.toInt()) { 1.0 }
+
+    private fun currentMode() = when (mode.checkedButtonId) {
+        R.id.mode_en -> "en"
+        R.id.mode_both -> "both"
+        else -> "pi"
+    }
+
+    private fun onModeChanged() {
+        val translation = currentMode() != "pi"
+        for (v in listOf<View>(enVoice, enSpeed, enVoiceLabel, enSpeedLabel)) v.alpha = if (translation) 1f else 0.4f
+        enVoice.isEnabled = translation
+        enSpeed.isEnabled = translation
+    }
+
+    private fun restoreSettings() {
+        mode.check(when (prefs.getString("mode", "pi")) {
+            "en" -> R.id.mode_en
+            "both" -> R.id.mode_both
+            else -> R.id.mode_pi
+        })
+        paliVoice.setSelection(paliVoices.indexOfFirst { it.second == prefs.getString("voice", "") }.coerceAtLeast(0))
+        paliSpeed.value = prefs.getInt("rate", 2).coerceIn(0, 4).toFloat()
+        val en = prefs.getFloat("en_speed", 1f).toDouble()
+        enSpeed.value = translationSpeeds.indexOfFirst { it == en }.coerceAtLeast(0).toFloat()
+        text.text = prefs.getString("text", "")
+        onModeChanged()
+        updateSpeedLabels()
+    }
+
+    private fun saveSettings() {
+        prefs.edit()
+            .putString("mode", currentMode())
+            .putString("voice", paliVoices[paliVoice.selectedItemPosition].second)
+            .putInt("rate", paliSpeed.value.toInt())
+            .putString("en_voice", selectedEnVoiceId() ?: AUTO_VOICE)
+            .putFloat("en_speed", currentEnSpeed().toFloat())
+            .putString("text", text.text.toString())
+            .apply()
+    }
+
+    // ── Play / Pause / Stop ───────────────────────────────────────────────────
+    private fun isPlaying() = player != null
+
+    private fun toggle() {
+        if (busy) return
+        if (isPlaying()) {
+            if (!paused) {
+                pause()
+                return
+            }
+            // Paused: resume, unless the text, speed or voice changed meanwhile
+            if (unchangedSincePlay()) {
+                resume()
+                return
+            }
+            stop()
+        }
+        start()
+    }
+
+    /** True if the text and choices are still those of the audio being played. */
+    private fun unchangedSincePlay(): Boolean {
+        val k = playKey ?: return false
+        return k.mode == currentMode() && k.speed == paliSpeed.value.toInt() &&
+            k.voice == paliVoices[paliVoice.selectedItemPosition].second &&
+            (k.mode == "pi" || (k.enVoice == selectedEnVoiceId() && k.enSpeed == currentEnSpeed())) &&
+            playText == text.text.toString()
+    }
+
+    private var playText: String? = null
+
+    private fun start() {
+        val content = text.text.toString().trim()
+        if (content.isEmpty()) {
+            status.text = "Please paste some text first."
+            return
+        }
+        val m = currentMode()
+        val speed = paliSpeed.value.toInt()
+        val voice = paliVoices[paliVoice.selectedItemPosition].second
+        val enV = if (m != "pi") selectedEnVoiceId() ?: AUTO_VOICE else null
+        val enS = if (m != "pi") currentEnSpeed() else null
+        busy = true
+        playBtn.isEnabled = false
+        time.text = ""
+        status.text = if (voice == ANDROID_KANNADA) "Generating…" else "Connecting…"
+        val shownText = text.text.toString()
+        worker.execute {
+            try {
+                val segs = JSONArray(bridge.callAttr("segments", content, m).toString()).let { a ->
+                    (0 until a.length()).map { a.getJSONArray(it).let { p -> p.getString(0) to p.getString(1) } }
+                }
+                if (segs.isEmpty()) {
+                    fail(if (m == "en") "No translation (non-Pāli) text detected." else "No Pāli text detected.")
+                    return@execute
+                }
+                val key = Key(m, segs, speed, voice, enV, enS)
+                val ready = audio
+                if (key == audioKey && ready != null && ready.exists()) {
+                    ui.post { done(key, ready, shownText) }
+                    return@execute
+                }
+                val out = generate(key)
+                ui.post { done(key, out, shownText) }
+            } catch (e: VoiceError) {
+                fail(e.message ?: "Voice error")
+            } catch (e: Throwable) {
+                Log.e(TAG, "generation failed", e)
+                fail(if (voice == ANDROID_KANNADA && enV == null) "Audio generation failed."
+                     else "Audio generation failed — check internet.")
+            }
+        }
+    }
+
+    private fun setStatus(msg: String) = ui.post { status.text = msg }
+
+    private fun fail(msg: String) = ui.post {
+        busy = false
+        playBtn.isEnabled = true
+        status.text = msg
+    }
+
+    /** Runs on the worker thread: text → one audio file (MP3 or WAV). */
+    private fun generate(key: Key): File {
+        val work = File(cacheDir, "audio").apply { mkdirs() }
+        work.listFiles()?.forEach { if (it != audio) it.delete() }  // old audio
+        val tag = "%d_%d".format(System.currentTimeMillis(), ++counter)
+        setStatus("Transliterating…")
+        val parts = key.segs.map { (lang, t) ->
+            if (lang == "pi") "kn" to bridge.callAttr("kannada", t).toString() else lang to t
+        }
+        val files = arrayOfNulls<List<File>>(parts.size)
+        val kn = parts.indices.filter { parts[it].first == "kn" }
+        if (kn.isNotEmpty()) {
+            setStatus("Generating Pāli audio…")
+            if (key.voice == ANDROID_KANNADA) {
+                val v = phone.kannadaVoice()
+                val factor = bridge.callAttr("rate_factor", key.speed).toFloat()
+                for (i in kn) files[i] = phone.synthesize(parts[i].second, v, factor,
+                    File(work, "${tag}_$i"), PhoneVoices.KANNADA)
+            } else {
+                val jobs = JSONArray()
+                for (i in kn) jobs.put(JSONArray().put(parts[i].second).put(File(work, "${tag}_$i.mp3").path))
+                bridge.callAttr("microsoft", jobs.toString(), key.speed, key.voice)
+                for (i in kn) files[i] = listOf(File(work, "${tag}_$i.mp3"))
+            }
+        }
+        val other = parts.indices.filter { parts[it].first != "kn" }
+        if (other.isNotEmpty()) {
+            setStatus("Generating translation audio…")
+            if (!phone.awaitReady()) throw VoiceError("The phone's text-to-speech is not working. " + PhoneVoices.TTS_SETTINGS)
+            val chosen = key.enVoice ?: AUTO_VOICE
+            val fixed = if (chosen == AUTO_VOICE || chosen == "") null else phone.voices().firstOrNull { it.name == chosen }
+            for (i in other) {
+                val v = if (chosen == AUTO_VOICE) phone.voiceFor(parts[i].first) else fixed
+                files[i] = phone.synthesize(parts[i].second, v, (key.enSpeed ?: 1.0).toFloat(), File(work, "${tag}_$i"))
+            }
+        }
+        val all = files.flatMap { it.orEmpty() }
+        if (all.size == 1) return all[0]
+        setStatus("Joining…")
+        val out = File(work, "$tag.wav")
+        AudioTools.join(all, out)
+        all.forEach { it.delete() }
+        return out
+    }
+
+    private fun done(key: Key, file: File, shownText: String) {
+        busy = false
+        playBtn.isEnabled = true
+        if (audio != null && audio != file) audio?.delete()
+        audio = file
+        audioKey = key
+        saveBtn.isEnabled = true
+        playKey = key
+        playText = shownText
+        play(file)
+    }
+
+    private fun play(file: File) {
+        releasePlayer()
+        val mp = MediaPlayer()
+        try {
+            mp.setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            mp.setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)  // keeps playing with the screen off
+            mp.setDataSource(file.path)
+            mp.prepare()
+        } catch (e: Exception) {
+            Log.e(TAG, "play failed", e)
+            mp.release()
+            status.text = "Could not play the audio."
+            return
+        }
+        mp.setOnCompletionListener { finished() }
+        player = mp
+        paused = false
+        requestFocus()
+        mp.start()
+        status.text = "Playing…"
+        playBtn.text = getString(R.string.pause)
+        tick()
+    }
+
+    private fun pause() {
+        player?.pause()
+        paused = true
+        playBtn.text = getString(R.string.resume)
+        status.text = "Paused"
+    }
+
+    private fun resume() {
+        requestFocus()
+        player?.start()
+        paused = false
+        playBtn.text = getString(R.string.pause)
+        status.text = "Playing…"
+        tick()
+    }
+
+    private fun finished() {
+        releasePlayer()
+        status.text = "Finished"
+    }
+
+    private fun stop() {
+        if (player != null) {
+            releasePlayer()
+            status.text = "Stopped"
+        }
+    }
+
+    private fun releasePlayer() {
+        ui.removeCallbacks(ticker)
+        player?.let {
+            try { it.stop() } catch (e: Exception) {}
+            it.release()
+        }
+        player = null
+        paused = false
+        if (::playBtn.isInitialized) playBtn.text = getString(R.string.play)
+        abandonFocus()
+    }
+
+    private val ticker = Runnable { tick() }
+
+    private fun tick() {
+        val mp = player ?: return
+        try {
+            time.text = fmt(mp.currentPosition) + " / " + fmt(mp.duration)
+        } catch (e: IllegalStateException) {
+            return
+        }
+        ui.removeCallbacks(ticker)
+        if (!paused) ui.postDelayed(ticker, 250)
+    }
+
+    private fun fmt(ms: Int): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60)
+        else "%d:%02d".format(s / 60, s % 60)
+    }
+
+    // Pause when another app plays sound, a call comes in, or headphones are unplugged
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        if (change < 0 && isPlaying() && !paused) ui.post { pause() }
+    }
+    private val noisy = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (isPlaying() && !paused) pause()
+        }
+    }
+    private var noisyRegistered = false
+
+    @Suppress("DEPRECATION")
+    private fun requestFocus() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= 26) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setOnAudioFocusChangeListener(focusListener).build()
+            focusRequest = req
+            am.requestAudioFocus(req)
+        } else {
+            am.requestAudioFocus(focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        }
+        if (!noisyRegistered) {
+            registerReceiver(noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+            noisyRegistered = true
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun abandonFocus() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= 26) focusRequest?.let { am.abandonAudioFocusRequest(it) }
+        else am.abandonAudioFocus(focusListener)
+        focusRequest = null
+        if (noisyRegistered) {
+            try { unregisterReceiver(noisy) } catch (e: Exception) {}
+            noisyRegistered = false
+        }
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+    private val saveMp3 = registerForActivityResult(ActivityResultContracts.CreateDocument("audio/mpeg")) { uri ->
+        uri?.let { writeSaved(it) }
+    }
+    private val saveM4a = registerForActivityResult(ActivityResultContracts.CreateDocument("audio/mp4")) { uri ->
+        uri?.let { writeSaved(it) }
+    }
+
+    /** Microsoft's Pāli audio is saved as MP3 (as on the desktop); anything joined with the
+     *  phone's voices as M4A (Android cannot write MP3). */
+    private fun save() {
+        val f = audio ?: return
+        val key = audioKey ?: return
+        worker.execute {
+            val name = try {
+                bridge.callAttr("save_name", key.mode, key.segs[0].second, key.speed,
+                    key.enSpeed ?: 1.0).toString()
+            } catch (e: Throwable) { "pali_audio" }
+            ui.post {
+                if (f.name.endsWith(".mp3")) saveMp3.launch("$name.mp3") else saveM4a.launch("$name.m4a")
+            }
+        }
+    }
+
+    private fun writeSaved(uri: Uri) {
+        val f = audio ?: return
+        status.text = "Saving…"
+        worker.execute {
+            try {
+                val src = if (f.name.endsWith(".mp3")) f else
+                    File(cacheDir, "export.m4a").also { AudioTools.toM4a(f, it) }
+                contentResolver.openOutputStream(uri)?.use { out -> src.inputStream().use { it.copyTo(out) } }
+                if (src != f) src.delete()
+                setStatus("Saved.")
+            } catch (e: Throwable) {
+                Log.e(TAG, "save failed", e)
+                setStatus("Could not save the audio.")
+            }
+        }
+    }
+
+    // ── Help ──────────────────────────────────────────────────────────────────
+    private fun showHelp() {
+        val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Read Pāli Aloud $version")
+            .setMessage(HELP)
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    // ── Automated test (CI): no sound, only the Python part and the phone's voices ─
+    private fun selftest() {
+        worker.execute {
+            try {
+                val result = bridge.callAttr("selftest").toString()
+                Log.i(TAG, "SELFTEST python $result")
+                val voices = if (phone.awaitReady()) phone.voices().size else -1
+                Log.i(TAG, "SELFTEST phone voices: $voices")
+                // Joining: two short silent WAVs → one, and M4A export
+                val a = File(cacheDir, "t1.wav").also { AudioTools.writeWav(it, ShortArray(2400)) }
+                val b = File(cacheDir, "t2.wav").also { AudioTools.writeWav(it, ShortArray(12000), 16000) }
+                val j = File(cacheDir, "tj.wav")
+                AudioTools.join(listOf(a, b), j)
+                val m = File(cacheDir, "tj.m4a")
+                AudioTools.toM4a(j, m)
+                Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
+                Log.i(TAG, "SELFTEST OK")
+            } catch (e: Throwable) {
+                Log.e(TAG, "SELFTEST FAILED", e)
+            }
+        }
+    }
+
+    companion object {
+        const val TAG = "PaliTTS"
+        const val ANDROID_KANNADA = "android-kn"
+        const val AUTO_VOICE = "auto"
+        const val AUTO_LABEL = "Auto (by language)"
+        const val SYSTEM_LABEL = "Phone's default voice"
+
+        val HELP = """
+            HOW TO USE
+            • Paste or type text, then tap Play. Or, in any app, select text → in the menu that appears (tap ⋮ if needed) → Read Pāli Aloud. Or Share → Read Pāli Aloud.
+
+            READ
+            • Pāli: only the Pāli lines are read; translations are skipped.
+            • Translation: only the other lines (any language), read by the phone's own voices.
+            • Both: everything, in order.
+
+            PĀLI VOICE
+            • Microsoft Male/Female: the best quality; needs internet.
+            • This phone's Kannada voice: works offline, if the phone has one (Phone Settings → search "Text-to-speech" → ⚙ next to Google → Install voice data → Kannada).
+
+            TRANSLATION VOICE
+            • Auto: a voice for each line's language (English, Chinese, Malay, …). Add languages in the phone's text-to-speech settings.
+
+            SAVE AUDIO
+            • After playing, "Save audio…" lets you choose where to keep it. Pāli with a Microsoft voice is saved as MP3, everything else as M4A.
+
+            Pāli is written in Kannada letters (Aksharamukha) so the Kannada voice pronounces it well.
+            Free software (AGPL-3.0). Āyasmā Paññādhammika.
+        """.trimIndent()
+    }
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ReadPaliAloud" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#E3C27A</item>
+        <item name="colorOnPrimary">#2B2000</item>
+        <item name="colorSecondaryContainer">#5A4712</item>
+        <item name="colorOnSecondaryContainer">#F3E2B3</item>
+    </style>
+</resources>

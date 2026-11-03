@@ -17,8 +17,11 @@ import time
 import json
 import platform
 from datetime import datetime
-import tkinter as tk
-from tkinter import ttk, filedialog
+try:
+    import tkinter as tk
+    from tkinter import ttk, filedialog
+except ImportError:  # Android app: uses only the text and audio functions below
+    tk = ttk = filedialog = None
 import wave
 
 try:  # HTTPS certificates for the bundled Python

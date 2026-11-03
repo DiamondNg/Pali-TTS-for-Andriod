@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light or dark: follows the phone's setting -->
+    <style name="Theme.ReadPaliAloud" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gold_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">@color/gold_light</item>
+        <item name="colorOnSecondaryContainer">#2B2000</item>
+    </style>
+</resources>

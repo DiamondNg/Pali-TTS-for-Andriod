@@ -27,3 +27,10 @@ bin/
 
 # Offline Piper voice (downloaded by CI from Hugging Face, ~60 MB)
 /voices/
+
+# Android (Gradle) build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
