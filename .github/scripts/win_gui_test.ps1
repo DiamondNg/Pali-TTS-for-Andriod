@@ -1,5 +1,5 @@
 # GUI tests of the installed Windows app (run by build_windows.yml).
-# 1) open the window with text, screenshot; 2) Ctrl+Alt+P on selected text.
+# 1) open the window with text, screenshot; 2) Ctrl+Shift+Y on selected text.
 param([string]$App = "$env:LOCALAPPDATA\Programs\Read Pali Aloud\ReadPaliAloud.exe",
       [string]$Out = "shots")
 $ErrorActionPreference = "Stop"
@@ -9,10 +9,10 @@ Add-Type @"
 using System; using System.Runtime.InteropServices;
 public static class K {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
-  public static void CtrlAltP() {
-    keybd_event(0x11,0,0,UIntPtr.Zero); keybd_event(0x12,0,0,UIntPtr.Zero);
-    keybd_event(0x50,0,0,UIntPtr.Zero); keybd_event(0x50,0,2,UIntPtr.Zero);
-    keybd_event(0x12,0,2,UIntPtr.Zero); keybd_event(0x11,0,2,UIntPtr.Zero);
+  public static void CtrlShiftY() {
+    keybd_event(0x11,0,0,UIntPtr.Zero); keybd_event(0x10,0,0,UIntPtr.Zero);
+    keybd_event(0x59,0,0,UIntPtr.Zero); keybd_event(0x59,0,2,UIntPtr.Zero);
+    keybd_event(0x10,0,2,UIntPtr.Zero); keybd_event(0x11,0,2,UIntPtr.Zero);
   }
 }
 "@
@@ -44,7 +44,7 @@ if ($got -ne $text) { "FAIL: text not received"; $fail = 1 }
 else { "OK: window got the text" }
 if (-not (Titles | Select-String "Read Pāli Aloud")) { "FAIL: no 'Read Pāli Aloud' window"; $fail = 1 }
 
-# 2) Ctrl+Alt+P: helper copies the selected text and opens the window
+# 2) Ctrl+Shift+Y: helper copies the selected text and opens the window
 StopAll
 $env:PALI_TTS_DUMP = Join-Path $env:RUNNER_TEMP "dump2.txt"
 Start-Process $App -ArgumentList "--hotkey"
@@ -57,7 +57,7 @@ $form.Controls.Add($box)
 $t = New-Object System.Windows.Forms.Timer; $t.Interval = 1500; $step = 0
 $t.Add_Tick({
   $script:step++
-  if ($script:step -eq 1) { $form.Activate(); $box.Focus(); $box.SelectAll(); [K]::CtrlAltP() }
+  if ($script:step -eq 1) { $form.Activate(); $box.Focus(); $box.SelectAll(); [K]::CtrlShiftY() }
   elseif ($script:step -ge 6) { $t.Stop(); $form.Close() }
 })
 $form.Add_Shown({ $form.Activate(); $t.Start() })
@@ -67,8 +67,8 @@ Titles
 Shot "hotkey"
 if (Test-Path $env:PALI_TTS_DUMP) {
   $got = Get-Content $env:PALI_TTS_DUMP -Raw -Encoding UTF8
-  "Ctrl+Alt+P text: '$got'"
-  if ($got -eq $text) { "OK: Ctrl+Alt+P passed the selected text" } else { "FAIL: wrong text"; $fail = 1 }
-} else { "FAIL: Ctrl+Alt+P did not open the window"; $fail = 1 }
+  "Ctrl+Shift+Y text: '$got'"
+  if ($got -eq $text) { "OK: Ctrl+Shift+Y passed the selected text" } else { "FAIL: wrong text"; $fail = 1 }
+} else { "FAIL: Ctrl+Shift+Y did not open the window"; $fail = 1 }
 StopAll
 exit $fail

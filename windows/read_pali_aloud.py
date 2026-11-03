@@ -2,7 +2,7 @@
 
   ReadPaliAloud.exe                      open the window
   ReadPaliAloud.exe --input-file F       open the window with the text in F
-  ReadPaliAloud.exe --hotkey             background helper: Ctrl+Alt+P reads the selection
+  ReadPaliAloud.exe --hotkey             background helper: Ctrl+Shift+Y reads the selection
   ReadPaliAloud.exe --selftest OUT       write a check of the bundled parts to OUT (CI)
 """
 import sys

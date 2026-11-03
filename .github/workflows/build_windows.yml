@@ -60,18 +60,24 @@ jobs:
           Get-Content "$env:RUNNER_TEMP\selftest.txt" -Encoding UTF8
           if (-not (Select-String -Path "$env:RUNNER_TEMP\selftest.txt" -Pattern "SELFTEST OK" -Quiet)) { exit 1 }
 
-      - name: Build PaliTTS-Setup.exe (Inno Setup)
+      - name: Build "Read Pāli Aloud v<version>.exe" (Inno Setup)
         run: |
+          # version = APP_VERSION in pali_tts.py
+          $v = (Select-String -Path pali_tts.py -Pattern '^APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
+          "version $v"
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc windows\PaliTTS.iss
+          & $iscc "/DAppVersion=$v" windows\PaliTTS.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Get-Item dist\PaliTTS-Setup.exe | Format-Table Name, Length
+          $setup = "dist\Read Pāli Aloud v$v.exe"
+          if (-not (Test-Path $setup)) { "FAIL: $setup not built"; exit 1 }
+          Get-Item $setup | Format-Table Name, Length
+          "SETUP=$setup" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install silently and check
         run: |
-          # WaitForExit, not -Wait: -Wait also waits for the Ctrl+Alt+P helper the installer starts
-          $p = Start-Process dist\PaliTTS-Setup.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
+          # WaitForExit, not -Wait: -Wait also waits for the Ctrl+Shift+Y helper the installer starts
+          $p = Start-Process $env:SETUP -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
           if (-not $p.WaitForExit(300000)) { "FAIL: installer still running after 5 min"; exit 1 }
           "installer exit code: $($p.ExitCode)"
           $app = "$env:LOCALAPPDATA\Programs\Read Pali Aloud"
@@ -83,7 +89,7 @@ jobs:
           Start-Sleep 3
           Get-Process ReadPaliAloud -ErrorAction SilentlyContinue | Format-Table Id, ProcessName
 
-      - name: GUI + Ctrl+Alt+P test
+      - name: GUI + Ctrl+Shift+Y test
         run: .github/scripts/win_gui_test.ps1
 
       - name: Uninstall test
@@ -107,12 +113,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PaliTTS-Windows
-          path: dist/PaliTTS-Setup.exe
+          path: dist/Read*Aloud v*.exe
           retention-days: 30
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/PaliTTS-Setup.exe
+          files: dist/Read*Aloud v*.exe
           generate_release_notes: true

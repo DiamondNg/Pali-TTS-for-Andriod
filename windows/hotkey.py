@@ -1,4 +1,4 @@
-"""Ctrl+Alt+P anywhere in Windows: copy the selected text and open Read Pāli Aloud with it.
+"""Ctrl+Shift+Y anywhere in Windows: copy the selected text and open Read Pāli Aloud with it.
 
 Runs in the background (started at login by a Startup-folder shortcut).
 Uses only Windows' own user32/kernel32 through ctypes: no AutoHotkey needed.
@@ -14,15 +14,15 @@ from ctypes import wintypes
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
-MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x0001, 0x0002, 0x4000
+MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT = 0x0001, 0x0002, 0x0004, 0x4000
 WM_HOTKEY = 0x0312
 VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN = 0x11, 0x12, 0x10, 0x5B, 0x5C
-VK_P, VK_C = 0x50, 0x43
+VK_Y, VK_C = 0x59, 0x43
 KEYEVENTF_KEYUP = 0x0002
 CF_UNICODETEXT = 13
 ERROR_ALREADY_EXISTS = 183
 HOTKEY_ID = 1
-HOTKEY_NAME = "Ctrl+Alt+P"
+HOTKEY_NAME = "Ctrl+Shift+Y"
 
 user32.GetClipboardData.restype = wintypes.HANDLE
 user32.GetClipboardData.argtypes = [wintypes.UINT]
@@ -38,9 +38,9 @@ def _key_down(vk):
 
 
 def _wait_keys_released(timeout=2.0):
-    """Ctrl+C sent while Alt is still held would become Ctrl+Alt+C."""
+    """Ctrl+C sent while Shift is still held would become Ctrl+Shift+C."""
     end = time.monotonic() + timeout
-    keys = (VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN, VK_P)
+    keys = (VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN, VK_Y)
     while time.monotonic() < end and any(_key_down(k) for k in keys):
         time.sleep(0.02)
 
@@ -111,7 +111,7 @@ def main():
     kernel32.CreateMutexW(None, False, "Local\\PaliTTS.ReadPaliAloud.Hotkey")
     if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
         return
-    if not user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_P):
+    if not user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_Y):
         _message(HOTKEY_NAME + " is already used by another program, so the Read Pāli Aloud "
                  "shortcut is off.\nYou can still open Read Pāli Aloud from the Start menu.")
         return

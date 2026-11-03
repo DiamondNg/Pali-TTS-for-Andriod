@@ -87,8 +87,8 @@ cat > "$C/Info.plist" << PLIST
     <key>CFBundleExecutable</key><string>ReadPaliAloud</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>2.4</string>
-    <key>CFBundleVersion</key><string>2.4</string>
+    <key>CFBundleShortVersionString</key><string>2.5</string>
+    <key>CFBundleVersion</key><string>2.5</string>
     <key>LSMinimumSystemVersion</key><string>10.15</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>
@@ -270,12 +270,18 @@ rm -rf "$STAGING"
     -f "$APP" 2>/dev/null || true
 echo "Installed $APP"
 
-# ── 7. Keyboard shortcut Control-Command-O, refresh Services menu ────────────
-# (^ = Control, @ = Command; can be changed in System Settings → Keyboard →
+# ── 7. Keyboard shortcut Shift-Command-Y, refresh Services menu ──────────────
+# (@ = Command, $ = Shift; can be changed in System Settings → Keyboard →
 #  Keyboard Shortcuts → Services → Text)
 defaults write pbs NSServicesStatus -dict-add \
     '"(null) - Read Pali Aloud - runWorkflowAsService"' \
-    '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "key_equivalent" = "@^o"; }' \
+    '{ "enabled_context_menu" = 1; "enabled_services_menu" = 1; "key_equivalent" = "@$y"; }' \
+    2>/dev/null || true
+# Shift-Command-Y is also macOS's own "Make New Sticky Note" service: take the
+# shortcut off that one (the Stickies service itself stays in the menu)
+defaults write pbs NSServicesStatus -dict-add \
+    '"com.apple.Stickies - Make Sticky - makeStickyFromTextService"' \
+    '{ "key_equivalent" = ""; }' \
     2>/dev/null || true
 /System/Library/CoreServices/pbs -flush 2>/dev/null || true
 /System/Library/CoreServices/pbs -update 2>/dev/null || true
@@ -284,7 +290,7 @@ echo ""
 echo "=== Done! ==="
 echo ""
 echo "Two ways to use it:"
-echo "  • Select text -> press Control-Command-O"
+echo "  • Select text -> press Shift-Command-Y"
 echo "    (or right-click -> Services -> Read Pali Aloud)"
 echo "  • Open \"$APP_NAME\" from Launchpad or Applications and paste text"
 echo ""

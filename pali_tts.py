@@ -637,6 +637,9 @@ def fmt_time(seconds):
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
 MUTED = "#808080"  # secondary text: readable on light and dark backgrounds
+APP_VERSION = "2.5"
+# Shortcut that opens the window with the selected text (set by the installers)
+SHORTCUT = "Cmd+Shift+Y" if IS_MAC else "Ctrl+Shift+Y"
 
 # Colours for the non-macOS dark mode (macOS uses its own dark appearance)
 DARK = {"bg": "#1e1e1e", "fg": "#e6e6e6", "field": "#2b2b2b", "accent": "#3a3a3a"}
@@ -684,7 +687,7 @@ class PaliTTSWindow:
             self.voice_ids[en_label] = en_id
 
         root.title("Read Pāli Aloud")
-        root.resizable(False, False)
+        root.resizable(True, True)  # minimum size = the packed size, set below
         root.configure(padx=20, pady=15)
         root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -696,7 +699,7 @@ class PaliTTSWindow:
         ttk.Checkbutton(top, text="Dark mode", variable=self.dark_var,
                         command=self._on_dark_toggle).pack(side="right")
         txt_frame = tk.Frame(root)
-        txt_frame.pack(fill="x", pady=(4, 14))
+        txt_frame.pack(fill="both", expand=True, pady=(4, 14))  # takes the extra space
         self.tk_widgets.append(txt_frame)
         self.text_box = tk.Text(txt_frame, height=6, width=40, wrap="word",
                                 font=("", 10))
@@ -797,8 +800,10 @@ class PaliTTSWindow:
         self.time_var = tk.StringVar(value="")
         ttk.Label(status_frame, textvariable=self.time_var,
                   foreground=MUTED, font=("", 9)).pack(side="right")
+        ttk.Label(root, text="Tip: select text in any app and press " + SHORTCUT +
+                  " to open it here", foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
         ttk.Label(root, text="Tip: Space bar = play / pause (Esc leaves the text box)",
-                  foreground=MUTED, font=("", 8)).pack(anchor="w", pady=(4, 0))
+                  foreground=MUTED, font=("", 8)).pack(anchor="w")
 
         self._on_mode()
         if "dark" in settings:
@@ -808,16 +813,23 @@ class PaliTTSWindow:
         root.bind("<space>", self._on_space)
         self.text_box.bind("<Escape>", lambda e: root.focus_set())
 
-        # ── Position near cursor ──────────────────────────────────────────────
+        # ── Size (remembered; never smaller than the original) + position ───
         root.update_idletasks()
-        w = root.winfo_reqwidth()
-        h = root.winfo_reqheight()
+        min_w, min_h = root.winfo_reqwidth(), root.winfo_reqheight()
+        root.minsize(min_w, min_h)
+        size = settings.get("size")
+        try:
+            w, h = max(min_w, int(size[0])), max(min_h, int(size[1]))
+        except (TypeError, ValueError, IndexError):
+            w, h = min_w, min_h
+        w = min(w, root.winfo_screenwidth())
+        h = min(h, root.winfo_screenheight() - 70)
         cx = root.winfo_pointerx()
         cy = root.winfo_pointery()
         # Keep the whole window on screen (below the macOS menu bar)
         x = max(0, min(cx - w // 2, root.winfo_screenwidth() - w))
         y = max(30, min(cy - h // 2, root.winfo_screenheight() - h - 40))
-        root.geometry("+%d+%d" % (x, y))
+        root.geometry("%dx%d+%d+%d" % (w, h, x, y))
         root.lift()
         root.attributes("-topmost", True)
         root.after(200, lambda: root.attributes("-topmost", False))
@@ -842,6 +854,7 @@ class PaliTTSWindow:
     def _on_dark_toggle(self):
         self.settings["dark"] = bool(self.dark_var.get())
         self._apply_theme()
+        self._save_settings()  # at once, in case the window is not closed normally
 
     def _apply_theme(self):
         dark = bool(self.dark_var.get())
@@ -1155,7 +1168,7 @@ class PaliTTSWindow:
         self.saved_key = key
         return "Saved: " + name
 
-    def _close(self):
+    def _save_settings(self):
         data = {
             "rate": SPEEDS[self._speed_index()][1],
             "en_speed": self._en_speed(),
@@ -1167,7 +1180,18 @@ class PaliTTSWindow:
         }
         if "dark" in self.settings:
             data["dark"] = self.settings["dark"]
-        save_settings(data)
+        try:
+            if self.root.state() == "normal":  # not maximised/minimised
+                data["size"] = [self.root.winfo_width(), self.root.winfo_height()]
+            elif "size" in self.settings:
+                data["size"] = self.settings["size"]
+        except tk.TclError:
+            pass
+        self.settings.update(data)
+        save_settings(self.settings)
+
+    def _close(self):
+        self._save_settings()
         self._stop()
         if self.poll_id is not None:
             self.root.after_cancel(self.poll_id)

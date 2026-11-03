@@ -1,7 +1,7 @@
-﻿; Inno Setup script: builds PaliTTS-Setup.exe from PyInstaller's dist\ReadPaliAloud folder.
+﻿; Inno Setup script: builds "Read Pāli Aloud v<version>.exe" from PyInstaller's dist\ReadPaliAloud folder.
 ; Built by .github/workflows/build_windows.yml. Saved as UTF-8 with BOM (for "ā").
 #ifndef AppVersion
-  #define AppVersion "2.4"
+  #define AppVersion "2.5"
 #endif
 
 [Setup]
@@ -14,7 +14,7 @@ DisableProgramGroupPage=yes
 DisableDirPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=PaliTTS-Setup
+OutputBaseFilename=Read Pāli Aloud v{#AppVersion}
 SetupIconFile=..\assets\AppIcon.ico
 UninstallDisplayIcon={app}\ReadPaliAloud.exe
 UninstallDisplayName=Read Pāli Aloud
@@ -39,7 +39,7 @@ Type: filesandordirs; Name: "{app}\_internal"
 [Icons]
 Name: "{userprograms}\Read Pāli Aloud"; Filename: "{app}\ReadPaliAloud.exe"; IconFilename: "{app}\AppIcon.ico"
 Name: "{userdesktop}\Read Pāli Aloud"; Filename: "{app}\ReadPaliAloud.exe"; IconFilename: "{app}\AppIcon.ico"; Tasks: desktopicon
-; Ctrl+Alt+P helper, started at every login
+; Ctrl+Shift+Y helper, started at every login
 Name: "{userstartup}\Read Pāli Aloud shortcut"; Filename: "{app}\ReadPaliAloud.exe"; Parameters: "--hotkey"; IconFilename: "{app}\AppIcon.ico"
 
 [Run]
@@ -54,7 +54,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  { Stop a running copy (the Ctrl+Alt+P helper) so its files can be replaced }
+  { Stop a running copy (the Ctrl+Shift+Y helper) so its files can be replaced }
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im ReadPaliAloud.exe', '', SW_HIDE,
        ewWaitUntilTerminated, ResultCode);
   Result := '';

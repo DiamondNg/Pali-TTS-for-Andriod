@@ -30,6 +30,15 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   (owner dropped 3.5x: SAPI max ≈3x), setting `en_speed`; Mac `say -r 175×`, WinRT SpeakingRate,
   SAPI Rate = 10·log3(x). Pāli slider label is now "Pāli speed".
 
+- v2.4 released (owner: works very well on Windows). v2.5 on branch `claude/focused-ride-ai96xi`
+  (PR): shortcut Ctrl+Shift+Y (Win, `hotkey.py`) / Cmd+Shift+Y (Mac `@$y`; installer clears the
+  Stickies "Make Sticky" service shortcut, same keys); tip line in window (`SHORTCUT`); window
+  resizable, min = packed size, text box expands; settings `size` [w,h] saved; settings saved at
+  once on dark toggle; `APP_VERSION` in pali_tts.py → installer names "Read Pāli Aloud v2.5.exe"
+  / ".dmg" (CI reads it). Windows right-click on selected text: not possible system-wide
+  (no Services equivalent) → not done; options: browser extension, Explorer menu for .txt files.
+- Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
+
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
   0.33x/0.67x/1x/1.33x/1.67x = edge-tts -75/-50/-25/+0/+25% (old steps ×4/3; old 1.5x/1.75x

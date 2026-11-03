@@ -11,7 +11,7 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Double-click PaliTTS-Setup.exe.
+  1. Double-click "Read Pāli Aloud v2.5.exe" (the installer).
      The installer is not signed, so Windows may show
      "Windows protected your PC": click "More info" → "Run anyway".
   2. Click through the installer (no administrator password needed;
@@ -19,8 +19,10 @@ INSTALLATION
 
 HOW TO USE
   • Select text in any program (browser, PDF, Word...) and press
-    Ctrl + Alt + P. The window opens with the selected text.
+    Ctrl + Shift + Y. The window opens with the selected text.
     (The shortcut copies the selection, so it replaces the clipboard.)
+    Windows has no right-click menu for selected text in all programs,
+    so the shortcut is the way to send a selection to the app.
   • Or open "Read Pāli Aloud" from the Start menu and paste text.
   The window:
        - Pāli speed slider 0.33x – 1.67x
@@ -40,14 +42,15 @@ HOW TO USE
          its language (Chinese, Japanese, Thai, Malay, Spanish, French,
          Vietnamese, Russian...) if such a voice is installed; English and
          languages without a voice use the system voice.
-       - Settings are remembered for next time.
+       - The window can be made bigger (the text box grows with it).
+       - Settings, window size and dark mode are remembered for next time.
 
 UNINSTALL
   Settings → Apps → Installed apps → "Read Pāli Aloud" → Uninstall.
 
 TROUBLESHOOTING
-  • Ctrl + Alt + P does nothing: sign out and in again (the small
+  • Ctrl + Shift + Y does nothing: sign out and in again (the small
     shortcut helper starts at login). If another program already uses
-    Ctrl + Alt + P, a message says so at login.
+    Ctrl + Shift + Y, a message says so at login.
   • "Audio generation failed" — check internet; Microsoft TTS
     (speech.platform.bing.com) must be reachable.

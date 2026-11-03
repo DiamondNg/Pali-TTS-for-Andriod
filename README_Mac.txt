@@ -13,7 +13,7 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Open PaliTTS-macOS.dmg, then double-click "Install Pali TTS.command"
+  1. Open "Read Pāli Aloud v2.5.dmg", then double-click "Install Pali TTS.command"
      A Terminal window opens and runs the installer automatically.
      If macOS says it "cannot verify" the file (it is not Apple-signed):
      click Done, then System Settings → Privacy & Security → scroll down
@@ -26,7 +26,9 @@ INSTALLATION
 
 HOW TO USE
   • Select text in any app (browser, PDF, Word...) and press
-    Control-Command-O, or right-click → Services → "Read Pali Aloud".
+    Shift-Command-Y, or right-click → Services → "Read Pali Aloud".
+    (The installer takes Shift-Command-Y away from macOS's "Make New
+    Sticky Note" service, which uses the same keys.)
     (Change the shortcut: System Settings → Keyboard → Keyboard
     Shortcuts → Services → Text.)
   • Or open "Read Pāli Aloud" from Launchpad / Applications and paste text.
@@ -52,7 +54,8 @@ HOW TO USE
        - Dark mode checkbox (top right); by default it follows the Mac
        - ññ (aññaṃ, paññā...) is read with the spelling the teacher chose
          in the v2.1 test (number 4).
-       - Settings are remembered for next time.
+       - The window can be made bigger (the text box grows with it).
+       - Settings, window size and dark mode are remembered for next time.
 
 UNINSTALL
   Run in Terminal:
