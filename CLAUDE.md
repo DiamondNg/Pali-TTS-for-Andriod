@@ -98,7 +98,9 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   progress), unpacks to filesDir/piper, ⋮ "Remove Piper voice". Native libs compressed
   (`useLegacyPackaging`). Google Kannada voice: own TTS instance on engine
   com.google.android.tts + "Offline Kannada voice…" dialog (install intents) + Help. Autoplay
-  on shared text: yes. Private signing key made 2026-11-03 (PKCS12, alias readpalialoud, 4096-bit, SHA-256 1B:A1:26:95:…:7D:78), given to owner as files; owner adds the 4 GitHub secrets (not verifiable by Claude).
+  on shared text: yes. Private signing key made 2026-11-03 (PKCS12, alias readpalialoud, 4096-bit, SHA-256 1B:A1:26:95:…:7D:78), given to owner as files; owner added the 4 GitHub secrets; CI log confirms PRIVATE key + fingerprint.
+  CI GREEN 2026-11-03 run 41686297490 (all 5 emulator tests; Microsoft voice even worked from the
+  emulator: 4 s played). APK 66 MB (artifact PaliTTS-Android). Next: owner tests on a phone, then PR + v2.x Release.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
