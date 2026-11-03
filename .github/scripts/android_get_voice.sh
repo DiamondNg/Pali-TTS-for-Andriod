@@ -18,7 +18,7 @@ cp "voices/$MODEL.onnx" "voices/$MODEL.onnx.json" "$W/"
 # sherpa-onnx's own converter (same release): writes tokens.txt, adds metadata to the model
 curl -fsSL --retry 3 -o "$W/add_meta_data.py" \
   "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v$SHERPA/scripts/piper/add_meta_data.py"
-python3 -m pip install --quiet onnx python-iso639
+python3 -m pip install --quiet onnx iso639-lang
 (cd "$W" && python3 add_meta_data.py --lang kn_IN --name syspin_male --kind medium)
 
 A=android/app/src/main/assets/piper
