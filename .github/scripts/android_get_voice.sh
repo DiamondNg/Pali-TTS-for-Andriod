@@ -26,7 +26,22 @@ python3 -m pip install --quiet onnx iso639-lang
 A="$W/piper"
 rm -rf "$A" && mkdir -p "$A"
 cp "$W/$MODEL.onnx" "$A/model.onnx"
-cp "$W/tokens.txt" "$A/tokens.txt"
+# sherpa-onnx 1.13.8 reads one letter per token (as Piper itself phonemizes: letter by letter);
+# this model's table also lists some two-letter entries ("aɪ"), which would stop the engine.
+python3 - "$W/tokens.txt" "$A/tokens.txt" "voices/$MODEL.onnx.json" <<'PY'
+import json, sys
+src, dst, cfg = sys.argv[1:]
+c = json.load(open(cfg, encoding="utf-8"))
+print("phoneme_type:", c.get("phoneme_type"), "espeak:", c.get("espeak"))
+kept, dropped = [], []
+for line in open(src, encoding="utf-8").read().split("\n"):
+    if not line:
+        continue
+    tok, _, idx = line.rpartition(" ")
+    (kept if len(tok) == 1 else dropped).append(line)
+open(dst, "w", encoding="utf-8").write("\n".join(kept) + "\n")
+print("tokens kept:", len(kept), "dropped (more than one letter):", dropped)
+PY
 # eSpeak NG data as packaged by sherpa-onnx with its Piper voices; keep only Kannada's dictionary
 curl -fsSL --retry 3 -o "$W/amy.tar.bz2" \
   "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-low.tar.bz2"
