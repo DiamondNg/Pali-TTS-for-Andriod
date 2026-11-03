@@ -2,8 +2,10 @@
 # Offline Piper Kannada voice for the Android app (run from the repository root, before Gradle):
 #  - android/app/libs/sherpa-onnx.aar: the engine (sherpa-onnx 1.13.8 = the last version with
 #    eSpeak NG, which Piper voices need; 2.x dropped it)
-#  - android/app/src/main/assets/piper/: the voice converted for sherpa-onnx (model.onnx with
-#    metadata, tokens.txt) + eSpeak NG data (only the Kannada dictionary)
+#  - dist-voice/piper-kn-<hash>.zip: the voice converted for sherpa-onnx (model.onnx with
+#    metadata, tokens.txt) + eSpeak NG data (only the Kannada dictionary). Not in the APK:
+#    the app downloads it from the GitHub Release "android-voice" when someone chooses Piper.
+#  - android/app/src/main/assets/piper_download.json: where the app finds that zip
 set -euo pipefail
 SHERPA=1.13.8
 MODEL=kn_IN-syspin_male-medium
@@ -21,7 +23,7 @@ curl -fsSL --retry 3 -o "$W/add_meta_data.py" \
 python3 -m pip install --quiet onnx iso639-lang
 (cd "$W" && python3 add_meta_data.py --lang kn_IN --name syspin_male --kind medium)
 
-A=android/app/src/main/assets/piper
+A="$W/piper"
 rm -rf "$A" && mkdir -p "$A"
 cp "$W/$MODEL.onnx" "$A/model.onnx"
 cp "$W/tokens.txt" "$A/tokens.txt"
@@ -33,4 +35,18 @@ cp -r "$W"/vits-piper-en_US-amy-low/espeak-ng-data "$A/"
 find "$A/espeak-ng-data" -maxdepth 1 -name '*_dict' ! -name 'kn_dict' -delete
 ls -l "$A" && du -sh "$A" "$A/espeak-ng-data" && head -5 "$A/tokens.txt"
 python3 -c "import onnx; m = onnx.load('$A/model.onnx'); print({p.key: p.value for p in m.metadata_props})"
+# Name by content: a voice already on the Release is never replaced, so older apps keep working
+H=$(cat "$A/model.onnx" "$A/tokens.txt" | sha256sum | cut -c1-12)
+NAME="piper-kn-$H.zip"
+mkdir -p dist-voice
+rm -f dist-voice/*.zip
+(cd "$A" && find . -exec touch -d '2026-01-01 00:00:00' {} + && zip -qrX "$OLDPWD/dist-voice/$NAME" .)
+SIZE=$(stat -c %s "dist-voice/$NAME")
+mkdir -p android/app/src/main/assets
+REPO="${GITHUB_REPOSITORY:-DiamondNg/Pali-TTS-for-Andriod}"
+cat > android/app/src/main/assets/piper_download.json <<JSON
+{"url": "https://github.com/$REPO/releases/download/android-voice/$NAME", "name": "$NAME", "size": $SIZE}
+JSON
+cat android/app/src/main/assets/piper_download.json
+ls -l dist-voice
 rm -rf "$W"

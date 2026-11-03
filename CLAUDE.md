@@ -91,8 +91,12 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   MediaStyle notification); Python/voices/worker live in `Session` (window rebuild crashed
   before). Piper YES → `PiperVoice.kt` with sherpa-onnx **1.13.8** AAR (2.x dropped eSpeak NG),
   fetched + model converted by `.github/scripts/android_get_voice.sh` (sherpa's
-  add_meta_data.py; espeak-ng-data from sherpa's amy package, only kn_dict) into gitignored
-  `app/libs` + `assets/piper`. Google Kannada voice: own TTS instance on engine
+  add_meta_data.py + iso639-lang; espeak-ng-data from sherpa's amy package, only kn_dict).
+  APK with the model inside was 205 MB → owner chose option C: voice NOT in the APK; zip
+  `piper-kn-<hash>.zip` uploaded by CI to pre-release "android-voice" (never replaced),
+  `assets/piper_download.json` (url/name/size) → app downloads on first choice (dialog,
+  progress), unpacks to filesDir/piper, ⋮ "Remove Piper voice". Native libs compressed
+  (`useLegacyPackaging`). Google Kannada voice: own TTS instance on engine
   com.google.android.tts + "Offline Kannada voice…" dialog (install intents) + Help. Autoplay
   on shared text: yes. App ID explained, owner to confirm.
 

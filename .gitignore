@@ -37,3 +37,5 @@ android/.idea/
 # Android offline voice (made by .github/scripts/android_get_voice.sh)
 android/app/libs/
 android/app/src/main/assets/piper/
+android/app/src/main/assets/piper_download.json
+dist-voice/

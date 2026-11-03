@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
     private val paliVoices = listOf(
         "Male · Microsoft (online)" to "kn-IN-GaganNeural",
         "Female · Microsoft (online)" to "kn-IN-SapnaNeural",
-        "Male · Piper, built in (offline)" to PIPER,
+        "Male · Piper (offline, download once)" to PIPER,
         "Kannada · Google voice on this phone (offline)" to ANDROID_KANNADA,
     )
     private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_tts.py
@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.action_paste -> paste()
                 R.id.action_clear -> { stop(); text.text = "" }
                 R.id.action_help -> showHelp()
+                R.id.action_remove_piper -> removePiper()
             }
             true
         }
@@ -230,6 +231,13 @@ class MainActivity : AppCompatActivity() {
         paliVoice.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
             paliVoices.map { it.first })
         setEnVoiceList()
+        paliVoice.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (paliVoices[pos].second == PIPER && !PiperVoice.installed(this@MainActivity)) offerPiper(null)
+                else lastPaliVoice = pos
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
         paliSpeed.setLabelFormatter { paliSpeeds.getOrElse(it.toInt()) { "" } }
         enSpeed.setLabelFormatter { speedLabel(translationSpeeds.getOrElse(it.toInt()) { 1.0 }) }
         paliSpeed.addOnChangeListener { _, _, _ -> updateSpeedLabels() }
@@ -351,6 +359,10 @@ class MainActivity : AppCompatActivity() {
         val m = currentMode()
         val speed = paliSpeed.value.toInt()
         val voice = paliVoices[paliVoice.selectedItemPosition].second
+        if (voice == PIPER && !PiperVoice.installed(this)) {
+            offerPiper { start() }
+            return
+        }
         val enV = if (m != "pi") selectedEnVoiceId() ?: AUTO_VOICE else null
         val enS = if (m != "pi") currentEnSpeed() else null
         busy = true
@@ -543,6 +555,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ── Piper voice: downloaded once when chosen ──────────────────────────────────────
+    private var lastPaliVoice = 0
+    private var downloading = false
+
+    /** Asks before downloading the Piper voice; then (optionally) continues with `after`. */
+    private fun offerPiper(after: (() -> Unit)?) {
+        if (downloading) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Download the Piper voice?")
+            .setMessage("The offline Piper voice (male, the same as on the computer) is downloaded " +
+                "once: about ${PiperVoice.downloadMb(this)} MB — Wi-Fi recommended. After that it " +
+                "works without internet.")
+            .setPositiveButton("Download") { _, _ -> downloadPiper(after) }
+            .setNegativeButton("Not now") { _, _ -> paliVoice.setSelection(lastPaliVoice) }
+            .setOnCancelListener { paliVoice.setSelection(lastPaliVoice) }
+            .show()
+    }
+
+    private fun downloadPiper(after: (() -> Unit)?) {
+        downloading = true
+        playBtn.isEnabled = false
+        status.text = "Downloading the Piper voice…"
+        Thread {
+            try {
+                PiperVoice.download(this) { pct -> setStatus("Downloading the Piper voice… $pct%") }
+                ui.post {
+                    downloading = false
+                    playBtn.isEnabled = true
+                    status.text = "Piper voice ready (offline)."
+                    lastPaliVoice = paliVoices.indexOfFirst { it.second == PIPER }
+                    after?.invoke()
+                }
+            } catch (e: Exception) {
+                ui.post {
+                    downloading = false
+                    playBtn.isEnabled = true
+                    status.text = e.message ?: "Could not download the Piper voice."
+                    paliVoice.setSelection(lastPaliVoice)
+                }
+            }
+        }.start()
+    }
+
+    private fun removePiper() {
+        if (!PiperVoice.installed(this)) {
+            status.text = "The Piper voice is not downloaded."
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Remove the Piper voice?")
+            .setMessage("Frees about ${PiperVoice.downloadMb(this)} MB. You can download it again later.")
+            .setPositiveButton("Remove") { _, _ ->
+                worker.execute { PiperVoice.remove(this) }
+                if (paliVoices[paliVoice.selectedItemPosition].second == PIPER) {
+                    lastPaliVoice = 0
+                    paliVoice.setSelection(0)
+                }
+                status.text = "Piper voice removed."
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     // ── The phone's own (Google) Kannada voice ───────────────────────────────────────
     private fun googleTtsInstalled() = try {
         packageManager.getPackageInfo(GOOGLE_TTS, 0)
@@ -612,7 +687,9 @@ class MainActivity : AppCompatActivity() {
                 AudioTools.toM4a(j, m)
                 Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
                 // Offline Piper voice (the whole chain: Kannada → eSpeak NG → model → WAV)
-                Log.i(TAG, "SELFTEST piper starting (model in APK: ${PiperVoice.available(this)})")
+                Log.i(TAG, "SELFTEST piper download starting")
+                PiperVoice.download(this) { pct -> if (pct % 25 == 0) Log.i(TAG, "SELFTEST piper download $pct%") }
+                Log.i(TAG, "SELFTEST piper installed: ${PiperVoice.installed(this)}")
                 val pv = File(cacheDir, "piper.wav")
                 val kn = bridge.callAttr("kannada", "Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā.").toString()
                 PiperVoice.synthesize(this, kn, 1f, pv)
@@ -663,7 +740,7 @@ class MainActivity : AppCompatActivity() {
 
             PĀLI VOICE
             • Microsoft Male/Female: the best quality; needs internet.
-            • Male · Piper, built in: works offline on every phone (the same voice as on the computer). Voice: micahchoo/piper-kn (CC BY 4.0), engine sherpa-onnx.
+            • Male · Piper: works offline on every phone (the same voice as on the computer). Downloaded once (about 60 MB) the first time you choose it; ⋮ → "Remove Piper voice" frees the space. Voice: micahchoo/piper-kn (CC BY 4.0), engine sherpa-onnx.
             • Kannada · Google voice on this phone: works offline once installed. Tap "Offline Kannada voice…" under the Pāli voice for the steps:
               Phone Settings → search "Text-to-speech" → ⚙ next to "Speech Services by Google" → Install voice data → Kannada (ಕನ್ನಡ) → download.
 

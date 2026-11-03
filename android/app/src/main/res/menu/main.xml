@@ -3,5 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item android:id="@+id/action_paste" android:title="@string/paste" app:showAsAction="ifRoom" />
     <item android:id="@+id/action_clear" android:title="@string/clear" app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_remove_piper" android:title="Remove Piper voice" app:showAsAction="never" />
     <item android:id="@+id/action_help" android:title="@string/help" app:showAsAction="never" />
 </menu>

@@ -60,6 +60,21 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "../dist/Read Pali Aloud v$v.apk"
           ls -l ../dist
 
+      - name: Put the Piper voice on the Release "android-voice" (the app downloads it from there)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=$(ls dist-voice/*.zip)
+          gh release view android-voice >/dev/null 2>&1 || gh release create android-voice \
+            --prerelease --title "Offline Piper voice for the Android app" \
+            --notes "Downloaded by the Android app when you choose the Piper voice. Voice: micahchoo/piper-kn (CC BY 4.0), converted for sherpa-onnx. Not an app release." \
+            --target "$GITHUB_SHA"
+          if gh release view android-voice --json assets --jq '.assets[].name' | grep -qx "$(basename "$f")"; then
+            echo "already on the Release: $f"
+          else
+            gh release upload android-voice "$f"
+          fi
+
       - name: Enable the emulator's hardware acceleration (KVM)
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
