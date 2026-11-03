@@ -66,6 +66,9 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   Licences: app AGPL-3.0-or-later (owner chose, = Aksharamukha) (owner: Āyasmā Paññādhammika, wants free distribution; told
   GPL allows selling); Piper voice CC BY 4.0 (credited in Help/README), piper-tts + eSpeak GPL-3,
   Aksharamukha AGPL-3, edge-tts/lameenc LGPL-3.
+- v2.7 on branch `claude/busy-bell-5kx2wl`: save folder choosable ("Save audio to: <folder>" +
+  "Change folder…" → `filedialog.askdirectory`), setting `save_dir` (default `default_save_dir()` =
+  ~/Downloads); missing folder → error message, no silent fallback. Untested locally (no Tk).
 - Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)

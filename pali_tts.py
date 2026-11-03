@@ -18,7 +18,7 @@ import json
 import platform
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 import wave
 
 try:  # HTTPS certificates for the bundled Python
@@ -627,6 +627,10 @@ def load_settings():
     except (OSError, ValueError):
         return {}
 
+def default_save_dir():
+    return os.path.join(os.path.expanduser("~"), "Downloads")
+
+
 def save_settings(data):
     path = _settings_path()
     try:
@@ -744,7 +748,7 @@ class PaliTTSWindow:
         self.audio_path = None    # last generated audio, reused when settings match
         self.audio_key = None     # settings key of audio_path
         self.play_key = None      # key of what is playing/paused
-        self.saved_key = None     # key last saved to Downloads
+        self.saved_key = None     # key last saved (reset when the folder changes)
         self.audio_secs = None    # length of audio_path in seconds
         self.elapsed = 0.0        # seconds played before the current run
         self.started = None       # time.monotonic() when playback (re)started
@@ -869,8 +873,16 @@ class PaliTTSWindow:
 
         # ── Save checkbox ─────────────────────────────────────────────────────
         self.save_var = tk.BooleanVar(value=bool(settings.get("save", False)))
-        ttk.Checkbutton(root, text="Save audio to Downloads",
-                        variable=self.save_var).pack(anchor="w", pady=(10, 0))
+        self.save_dir = settings.get("save_dir") or default_save_dir()
+        save_row = ttk.Frame(root)
+        save_row.pack(fill="x", pady=(10, 0))
+        ttk.Checkbutton(save_row, text="Save audio to:",
+                        variable=self.save_var).pack(side="left")
+        self.save_dir_label = ttk.Label(save_row, text="")
+        self.save_dir_label.pack(side="left", padx=(4, 0))
+        ttk.Button(save_row, text="Change folder…",
+                   command=self._choose_save_dir).pack(side="right")
+        self._show_save_dir()
         self.save_note = ttk.Label(root, text="", foreground=MUTED, font=("", 9))
         self.save_note.pack(anchor="w")
         if tray is not None:  # Windows background options
@@ -1371,6 +1383,21 @@ class PaliTTSWindow:
         if not self.busy:
             self.status_var.set("Stopped.")
 
+    def _show_save_dir(self):
+        name = os.path.basename(os.path.normpath(self.save_dir)) or self.save_dir
+        self.save_dir_label.config(text=name)
+
+    def _choose_save_dir(self):
+        start = self.save_dir if os.path.isdir(self.save_dir) else default_save_dir()
+        chosen = filedialog.askdirectory(parent=self.root, initialdir=start, mustexist=True,
+                                         title="Where should audio files be saved?")
+        if chosen:
+            self.save_dir = os.path.normpath(chosen)
+            self.saved_key = None  # save again into the new folder
+            self.save_var.set(True)
+            self._show_save_dir()
+            self._save_settings()
+
     def _save_if_requested(self, key):
         if not self.save_var.get() or key == self.saved_key:
             return None
@@ -1386,7 +1413,9 @@ class PaliTTSWindow:
         else:
             base += "_pali_%s_translation_%s" % (SPEEDS[speed][0], en_speed)
         ext = ".mp3"
-        dl = os.path.join(os.path.expanduser("~"), "Downloads")
+        dl = self.save_dir
+        if not os.path.isdir(dl):  # folder deleted or drive removed
+            return "Could not save: folder not found (%s). Choose another folder." % dl
         name = base + ext
         path = os.path.join(dl, name)
         if os.path.exists(path):
@@ -1398,7 +1427,7 @@ class PaliTTSWindow:
             else:
                 wav_to_mp3(self.audio_path, path)
         except Exception:  # disk full, no permission, encoder missing...
-            return "Could not save audio to Downloads."
+            return "Could not save audio to %s." % os.path.basename(os.path.normpath(dl))
         self.saved_key = key
         return "Saved: " + name
 
@@ -1408,6 +1437,7 @@ class PaliTTSWindow:
             "en_speed": self._en_speed(),
             "voice": self.voice_var.get(),
             "save": bool(self.save_var.get()),
+            "save_dir": self.save_dir,
             "mode": self.mode_var.get(),
             "en_voice": self.voice_ids.get(self.en_voice_var.get(), ""),
             "en_voice_label": self.en_voice_var.get(),
@@ -1663,7 +1693,8 @@ def help_text(tray=False):
     S.append(
         "# Other settings\n"
         "• **Pāli speed:** 0.33x to 1.67x. **Translation speed:** 0.75x to 3x.\n"
-        "• **Save audio to Downloads:** saves an MP3; the speed is in the file name.\n"
+        "• **Save audio to:** saves an MP3 (Downloads unless you click **Change folder…**); "
+        "the speed is in the file name.\n"
         "• **Dark mode:** top right.\n"
         "• The window can be made bigger; the text box grows with it.\n"
         "• All settings, the window size and dark mode are remembered.")
