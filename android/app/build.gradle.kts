@@ -73,6 +73,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    packaging {
+        jniLibs.useLegacyPackaging = true  // compressed native libraries: much smaller download
+    }
     androidResources {
         noCompress += "onnx"  // the voice model is read straight from the APK
     }

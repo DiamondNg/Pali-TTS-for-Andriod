@@ -612,6 +612,7 @@ class MainActivity : AppCompatActivity() {
                 AudioTools.toM4a(j, m)
                 Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
                 // Offline Piper voice (the whole chain: Kannada → eSpeak NG → model → WAV)
+                Log.i(TAG, "SELFTEST piper starting (model in APK: ${PiperVoice.available(this)})")
                 val pv = File(cacheDir, "piper.wav")
                 val kn = bridge.callAttr("kannada", "Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā.").toString()
                 PiperVoice.synthesize(this, kn, 1f, pv)

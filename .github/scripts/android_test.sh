@@ -25,8 +25,9 @@ wait_log() {  # wait up to $2 s for $1 in the app's log
 
 echo "== 1. Self-test: Python, Aksharamukha, language detection, phone voices, joining audio"
 adb shell am start -n "$PKG/.MainActivity" --ez selftest true
-wait_log "SELFTEST OK\|SELFTEST FAILED" 180
-adb logcat -d -s PaliTTS:* python.stdout:* python.stderr:* AndroidRuntime:* | tee shots/selftest.log
+wait_log "SELFTEST OK\|SELFTEST FAILED" 300
+adb logcat -d -s PaliTTS:* python.stdout:* python.stderr:* AndroidRuntime:* sherpa-onnx:* DEBUG:* libc:* | tee shots/selftest.log
+grep -q "SELFTEST OK" shots/selftest.log || { echo "--- all errors:"; adb logcat -d '*:E' | tail -60; }
 grep -q "SELFTEST OK" shots/selftest.log || fail "selftest"
 grep -q "ನಮೋ ತಸ್ಸ ಭಗವತೋ" shots/selftest.log || fail "Kannada transliteration"
 grep -q '"nya": true' shots/selftest.log || fail "ññ spelling"

@@ -5,6 +5,7 @@ import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import android.util.Log
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -26,7 +27,9 @@ object PiperVoice {
     fun synthesize(context: Context, kannada: String, speed: Float, out: File) {
         if (!available(context)) throw VoiceError("The offline Piper voice is not in this build of the app.")
         val engine = tts ?: load(context.applicationContext).also { tts = it }
+        Log.i("PaliTTS", "Piper: generating ${kannada.length} letters")
         val audio = engine.generate(kannada, 0, speed)
+        Log.i("PaliTTS", "Piper: ${audio.samples.size} samples at ${audio.sampleRate} Hz")
         val samples = ShortArray(audio.samples.size) {
             (audio.samples[it].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
         }
@@ -43,6 +46,7 @@ object PiperVoice {
             data.deleteRecursively()
             copyAssets(context, "$DIR/espeak-ng-data", data)
             stamp.writeText(version)
+            Log.i("PaliTTS", "Piper: eSpeak NG data copied")
         }
         val config = OfflineTtsConfig(
             model = OfflineTtsModelConfig(
@@ -56,7 +60,8 @@ object PiperVoice {
                 provider = "cpu",
             ),
         )
-        return OfflineTts(context.assets, config)
+        Log.i("PaliTTS", "Piper: loading the model")
+        return OfflineTts(context.assets, config).also { Log.i("PaliTTS", "Piper: model loaded") }
     }
 
     private fun copyAssets(context: Context, path: String, dest: File) {
