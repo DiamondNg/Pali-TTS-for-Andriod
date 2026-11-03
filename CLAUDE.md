@@ -73,7 +73,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
   `android/` = Gradle project (AGP 8.7.3, Kotlin 2.0.21, Chaquopy 16.1.0, Python 3.11 (3.12+ lacks armeabi-v7a), minSdk 24,
-  targetSdk 35, id `org.sasanarakkha.readpalialoud`). Kotlin UI (`MainActivity.kt`,
+  targetSdk 35, id `io.github.diamondng.readpalialoud` (owner: no sasanarakkha in the ID; Mac bundle id unchanged)). Kotlin UI (`MainActivity.kt`,
   `PhoneVoices.kt` = Android TextToSpeech, `AudioTools.kt` = MediaCodec decode/join/AAC M4A)
   + `app/src/main/python/bridge.py` importing the shared `pali_tts.py` (copied at build;
   tkinter import now optional). Pip `--no-deps` from `app/requirements.txt` (all pure Python);
@@ -98,7 +98,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   progress), unpacks to filesDir/piper, ⋮ "Remove Piper voice". Native libs compressed
   (`useLegacyPackaging`). Google Kannada voice: own TTS instance on engine
   com.google.android.tts + "Offline Kannada voice…" dialog (install intents) + Help. Autoplay
-  on shared text: yes. App ID explained, owner to confirm.
+  on shared text: yes. Private signing key made 2026-11-03 (PKCS12, alias readpalialoud, 4096-bit, SHA-256 1B:A1:26:95:…:7D:78), given to owner as files; owner adds the 4 GitHub secrets (not verifiable by Claude).
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider

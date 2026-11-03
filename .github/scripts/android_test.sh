@@ -2,7 +2,7 @@
 # Automated test of the Android app on the emulator (CI). No sound can be checked:
 # Microsoft's voices refuse GitHub's servers, so only the rest is tested.
 set -uo pipefail
-PKG=org.sasanarakkha.readpalialoud
+PKG=io.github.diamondng.readpalialoud
 APK=$(ls dist/*.apk | head -1)
 mkdir -p shots
 fail() { echo "FAIL: $*"; exit 1; }

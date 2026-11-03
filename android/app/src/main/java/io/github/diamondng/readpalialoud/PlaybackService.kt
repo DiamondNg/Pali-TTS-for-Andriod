@@ -1,4 +1,4 @@
-package org.sasanarakkha.readpalialoud
+package io.github.diamondng.readpalialoud
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -109,9 +109,9 @@ class PlaybackService : Service() {
     companion object {
         private const val CHANNEL = "playback"
         private const val NOTIFICATION_ID = 1
-        const val ACTION_PLAY = "org.sasanarakkha.readpalialoud.PLAY"
-        const val ACTION_PAUSE = "org.sasanarakkha.readpalialoud.PAUSE"
-        const val ACTION_STOP = "org.sasanarakkha.readpalialoud.STOP"
+        const val ACTION_PLAY = "io.github.diamondng.readpalialoud.PLAY"
+        const val ACTION_PAUSE = "io.github.diamondng.readpalialoud.PAUSE"
+        const val ACTION_STOP = "io.github.diamondng.readpalialoud.STOP"
         private var instance: PlaybackService? = null
 
         /** Called by Playback after every change. */

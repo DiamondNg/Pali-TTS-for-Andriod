@@ -25,11 +25,11 @@ val releaseKeystore: File? = System.getenv("ANDROID_KEYSTORE_BASE64")?.takeIf { 
 }
 
 android {
-    namespace = "org.sasanarakkha.readpalialoud"
+    namespace = "io.github.diamondng.readpalialoud"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "org.sasanarakkha.readpalialoud"
+        applicationId = "io.github.diamondng.readpalialoud"
         minSdk = 24
         targetSdk = 35
         versionCode = 1000 + buildNumber

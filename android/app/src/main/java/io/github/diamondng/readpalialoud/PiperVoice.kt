@@ -1,4 +1,4 @@
-package org.sasanarakkha.readpalialoud
+package io.github.diamondng.readpalialoud
 
 import android.content.Context
 import android.util.Log
