@@ -1,0 +1,48 @@
+name: Probe sherpa-onnx (temporary)
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/probe_sherpa.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Releases with Android AARs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/k2-fsa/sherpa-onnx/releases?per_page=100" --paginate \
+            --jq '.[] | select(any(.assets[]; .name|endswith(".aar"))) | .tag_name + "  " + .published_at' | head -60
+      - name: Inspect AARs (2.0.1 and the last 1.x)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last1=$(gh api "repos/k2-fsa/sherpa-onnx/releases?per_page=100" --paginate --jq '.[].tag_name' | grep '^v1\.' | sort -V | tail -1)
+          echo "last 1.x: $last1"
+          for tag in v2.0.1 $last1; do
+            v=${tag#v}
+            echo "=================== $tag"
+            curl -sSL -o s.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/$tag/sherpa-onnx-$v.aar" || continue
+            ls -l s.aar; rm -rf x; mkdir x; (cd x && unzip -q ../s.aar && ls -R | head -40)
+            if [ -f x/classes.jar ]; then (cd x && unzip -q -o classes.jar -d cls && find cls -name '*Tts*' | head -30); fi
+            javap -cp x/classes.jar com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig 2>/dev/null || echo "no classes in AAR"
+            javap -cp x/classes.jar com.k2fsa.sherpa.onnx.OfflineTts 2>/dev/null | head -30
+            ls -l x/jni/*/ 2>/dev/null
+          done
+      - name: How v2 Piper model packages look
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/k2-fsa/sherpa-onnx/releases/tags/tts-models --jq '.assets[].name' | grep -i "piper" | head -15
+          f=$(gh api repos/k2-fsa/sherpa-onnx/releases/tags/tts-models --jq '.assets[].name' | grep -i "vits-piper-en_US-amy-low" | head -1)
+          echo "file: $f"
+          curl -sSL -o m.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$f" && tar tjf m.tar.bz2 | grep -v "espeak-ng-data/.*/" | head -40
+          tar tjf m.tar.bz2 | grep -c espeak-ng-data || true
+      - name: Converter scripts in the repo
+        run: |
+          git clone -q --depth 1 https://github.com/k2-fsa/sherpa-onnx s
+          ls s/scripts/piper 2>/dev/null; grep -rln "add_meta_data\|phoneme_id_map" s/scripts | head
+          for f in $(grep -rln "phoneme_id_map" s/scripts | head -3); do echo "=== $f"; sed -n 1,140p "$f"; done
+          grep -n "dataDir\|data_dir\|espeak" s/sherpa-onnx/kotlin-api/Tts.kt | head
+          grep -rn "data-dir\|espeak" s/sherpa-onnx/csrc/offline-tts-vits-model-config.cc | head -20
