@@ -48,8 +48,12 @@ class PhoneVoices(context: Context, engine: String? = null) {
 
     /** Waits (on a background thread) until the voices can be used. */
     fun awaitReady(seconds: Long = 20): Boolean {
-        ready.await(seconds, TimeUnit.SECONDS)
-        return ok
+        return try {
+            ready.await(seconds, TimeUnit.SECONDS)
+            ok
+        } catch (e: InterruptedException) {
+            false
+        }
     }
 
     fun shutdown() = try { tts.shutdown() } catch (e: Exception) {}

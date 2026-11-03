@@ -51,6 +51,12 @@ object Session {
     var audio: File? = null
     var audioKey: Key? = null
     var counter = 0
+    // Python and the voices serve the whole app: they keep working when the window is
+    // closed or rebuilt (e.g. turning the phone), and start only once.
+    val worker: java.util.concurrent.ExecutorService = Executors.newSingleThreadExecutor()
+    var bridge: PyObject? = null
+    var phone: PhoneVoices? = null
+    var kannada: PhoneVoices? = null
 }
 
 class MainActivity : AppCompatActivity() {
@@ -82,11 +88,11 @@ class MainActivity : AppCompatActivity() {
 
     private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
     private val ui = Handler(Looper.getMainLooper())
-    private val worker = Executors.newSingleThreadExecutor()  // Python + voices, in order
-    private lateinit var bridge: PyObject
-    private lateinit var phone: PhoneVoices
+    private val worker get() = Session.worker  // Python + voices, in order
+    private val bridge: PyObject get() = Session.bridge ?: throw IllegalStateException("Python not started")
+    private val phone: PhoneVoices get() = Session.phone!!
 
-    private lateinit var kannada: PhoneVoices  // Google's engine if installed (has Kannada)
+    private val kannada: PhoneVoices get() = Session.kannada!!  // Google's engine if installed
 
     private var busy = false
     // The audio made last and what it was made from: kept while the app lives (Session)
@@ -118,15 +124,17 @@ class MainActivity : AppCompatActivity() {
 
         setUpControls()
         restoreSettings()
-        phone = PhoneVoices(this)
-        kannada = if (googleTtsInstalled()) PhoneVoices(this, GOOGLE_TTS) else phone
+        if (Session.phone == null) {
+            Session.phone = PhoneVoices(applicationContext)
+            Session.kannada = if (googleTtsInstalled()) PhoneVoices(applicationContext, GOOGLE_TTS) else Session.phone
+        }
         Playback.listener = Playback.Listener { showPlayback() }
         showPlayback()
         status.text = "Starting…"
         worker.execute {
             try {
                 if (!Python.isStarted()) Python.start(AndroidPlatform(this))
-                bridge = Python.getInstance().getModule("bridge")
+                if (Session.bridge == null) Session.bridge = Python.getInstance().getModule("bridge")
                 val sp = JSONObject(bridge.callAttr("speeds").toString())
                 val labels = sp.getJSONArray("labels").let { a -> (0 until a.length()).map { a.getString(it) } }
                 val tr = sp.getJSONArray("translation").let { a -> (0 until a.length()).map { a.getDouble(it) } }
@@ -157,12 +165,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // Reading goes on (Playback); only the window's helpers end
+        // Reading, Python and the voices go on (Session, Playback); only the window ends
+        Log.i(TAG, "window closed (rebuilt: $isChangingConfigurations)")
         Playback.listener = null
         ui.removeCallbacks(ticker)
-        if (kannada !== phone) kannada.shutdown()
-        phone.shutdown()
-        worker.shutdownNow()
         super.onDestroy()
     }
 
