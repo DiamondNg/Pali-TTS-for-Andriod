@@ -749,17 +749,25 @@ class PaliTTSWindow:
                                      values=list(self.voice_ids), height=20,
                                      state="readonly", width=30)
         self.en_combo.pack(side="left")
-        tr_frame = ttk.Frame(root)
-        tr_frame.pack(anchor="w", pady=(8, 0))
-        ttk.Label(tr_frame, text="Translation speed:").pack(side="left", padx=(0, 10))
+        # Translation speed: its own slider (the Pāli slider above is unchanged)
         en_speed = settings.get("en_speed")
         if en_speed not in TRANSLATION_SPEEDS:
             en_speed = 1.0
-        self.en_speed_var = tk.StringVar(value=speed_label(en_speed))
-        self.en_speed_combo = ttk.Combobox(
-            tr_frame, textvariable=self.en_speed_var, state="readonly", width=6,
-            values=[speed_label(m) for m in TRANSLATION_SPEEDS])
-        self.en_speed_combo.pack(side="left")
+        self.en_speed_label = ttk.Label(root, text="", font=("", 11, "bold"))
+        self.en_speed_label.pack(anchor="w", pady=(10, 0))
+        self.en_slider_var = tk.DoubleVar(value=TRANSLATION_SPEEDS.index(en_speed))
+        self.en_slider = ttk.Scale(root, from_=0, to=len(TRANSLATION_SPEEDS) - 1,
+                                   orient="horizontal", variable=self.en_slider_var,
+                                   command=self._on_en_drag, length=300)
+        self.en_slider.pack(fill="x", pady=(4, 0))
+        tick_frame = tk.Frame(root)
+        tick_frame.pack(fill="x")
+        self.tk_widgets.append(tick_frame)
+        for m in TRANSLATION_SPEEDS:
+            lbl = tk.Label(tick_frame, text=speed_label(m), fg=MUTED, font=("", 8))
+            lbl.pack(side="left", expand=True)
+            self.tk_widgets.append(lbl)
+        self._on_en_drag(None)
         threading.Thread(target=self._load_voices, daemon=True).start()
 
         # ── Save checkbox ─────────────────────────────────────────────────────
@@ -903,14 +911,18 @@ class PaliTTSWindow:
     def _on_mode(self):
         mode = self.mode_var.get()
         self.en_combo.config(state="disabled" if mode == "pi" else "readonly")
-        self.en_speed_combo.config(state="disabled" if mode == "pi" else "readonly")
+        self.en_slider.state(["disabled"] if mode == "pi" else ["!disabled"])
         self.save_note.config(text="Saved as MP3 at the chosen speed and voice%s."
                               % ("" if mode == "pi" else "s"))
 
     def _en_speed(self):
-        labels = [speed_label(m) for m in TRANSLATION_SPEEDS]
-        label = self.en_speed_var.get()
-        return TRANSLATION_SPEEDS[labels.index(label)] if label in labels else 1.0
+        idx = max(0, min(len(TRANSLATION_SPEEDS) - 1, round(self.en_slider_var.get())))
+        return TRANSLATION_SPEEDS[idx]
+
+    def _on_en_drag(self, _value):
+        speed = self._en_speed()
+        self.en_slider_var.set(TRANSLATION_SPEEDS.index(speed))
+        self.en_speed_label.config(text="Translation speed:  " + speed_label(speed))
 
     def _current_key(self):
         """Settings key (mode, segments, Pāli speed index, Pāli voice, translation voice id,

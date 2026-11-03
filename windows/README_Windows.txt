@@ -24,7 +24,7 @@ HOW TO USE
   • Or open "Read Pāli Aloud" from the Start menu and paste text.
   The window:
        - Pāli speed slider 0.33x – 1.67x
-       - Translation speed: 0.75x – 3x (the Windows voice's own speed)
+       - Translation speed slider 0.75x – 3x (the Windows voice's own speed)
        - Pāli voice: Male or Female (Microsoft, needs internet)
        - "Save audio to Downloads": always MP3; the speed is added
          to the file name

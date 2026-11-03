@@ -26,7 +26,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   tags translation lines with `guess_language()` (Unicode script ranges; Latin via marker words
   for ms/es/fr/de/it/pt/nl/tl, Vietnamese letters, else en); `pick_voice()` matches the voice
   label's language prefix (PREFERRED_REGION, ms↔id; Apple Eloquence voices last); English →
-  system default voice. Separate "Translation speed" combobox `TRANSLATION_SPEEDS` 0.75–3x
+  system default voice. Separate "Translation speed" slider (owner: Pāli slider unchanged) `TRANSLATION_SPEEDS` 0.75–3x
   (owner dropped 3.5x: SAPI max ≈3x), setting `en_speed`; Mac `say -r 175×`, WinRT SpeakingRate,
   SAPI Rate = 10·log3(x). Pāli slider label is now "Pāli speed".
 
