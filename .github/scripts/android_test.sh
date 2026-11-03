@@ -62,22 +62,29 @@ adb logcat -d -s PaliTTS:* | grep -q "SELFTEST label: Pāli speed:  1x" || fail 
 echo "OK: main window"
 
 echo "== 2. Text selected in another app → Read Pāli Aloud (PROCESS_TEXT)"
+# Android lists the app in the text-selection menu:
+adb shell cmd package query-activities -a android.intent.action.PROCESS_TEXT -t text/plain | grep -q "$PKG" \
+  || fail "not offered in the text-selection menu"
+adb shell cmd package query-activities -a android.intent.action.SEND -t text/plain | grep -q "$PKG" \
+  || fail "not offered in the Share menu"
+echo "OK: offered in the selection menu and in Share"
 adb logcat -c
-adb shell "am start -a android.intent.action.PROCESS_TEXT -t text/plain --es android.intent.extra.PROCESS_TEXT 'Evaṃ me sutaṃ — ekaṃ samayaṃ bhagavā.'"
+adb shell "am start -n $PKG/.MainActivity -a android.intent.action.PROCESS_TEXT -t text/plain --es android.intent.extra.PROCESS_TEXT 'Evaṃ me sutaṃ — ekaṃ samayaṃ bhagavā.'"
 sleep 15
 adb exec-out screencap -p > shots/2_process_text.png
 ui_dump 2_process_text
-grep -q "Evaṃ me sutaṃ  ekaṃ samayaṃ bhagavā." shots/2_process_text.xml || \
-  grep -q "Evaṃ me sutaṃ" shots/2_process_text.xml || fail "selected text not shown"
-grep -o 'text="[^"]*"' shots/2_process_text.xml | head -40
-adb logcat -d -s PaliTTS:* python.stderr:* | tail -30
+grep -o 'text="[^"]*"' shots/2_process_text.xml | grep -v 'text=""' | head -30
+grep -q "Evaṃ me sutaṃ" shots/2_process_text.xml || fail "selected text not shown"
+adb logcat -d -s PaliTTS:* python.stderr:* | tail -20
+echo "OK: selected text shown (and reading started)"
 
-echo "== 3. Share → Read Pāli Aloud (SEND), Both mode text"
-adb shell "am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT 'Namo tassa bhagavato.\nHomage to the Blessed One.'"
+echo "== 3. Share → Read Pāli Aloud (SEND)"
+adb shell "am start -n $PKG/.MainActivity -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT 'Namo tassa bhagavato.'"
 sleep 10
 adb exec-out screencap -p > shots/3_share.png
 ui_dump 3_share
-grep -q "Namo tassa bhagavato" shots/3_share.xml || fail "shared text not shown"
+grep -q "Namo tassa bhagavato" shots/3_share.xml || { grep -o 'text="[^"]*"' shots/3_share.xml | grep -v 'text=""' | head -30; fail "shared text not shown"; }
+echo "OK: shared text shown"
 
 echo "== 4. Dark mode"
 adb shell cmd uimode night yes
