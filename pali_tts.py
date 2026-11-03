@@ -71,10 +71,23 @@ PLAY_TEXT   = "\u25B6  Play"
 RESUME_TEXT = "\u25B6  Resume"
 PAUSE_TEXT  = "\u23F8  Pause"
 
+# Pāli voices: (label, id). Microsoft's need internet; Piper (bundled) and the
+# Mac's own Kannada voice Soumya work offline.
 VOICES = [
-    ("Male",   "kn-IN-GaganNeural"),
-    ("Female", "kn-IN-SapnaNeural"),
+    ("Male · Microsoft (online)",   "kn-IN-GaganNeural"),
+    ("Female · Microsoft (online)", "kn-IN-SapnaNeural"),
+    ("Male · Piper (offline)",      "piper"),
 ]
+if IS_MAC:
+    VOICES.append(("Female · Soumya, Mac (offline)", "soumya"))
+OFFLINE_VOICES = {"piper", "soumya"}
+PIPER_MODEL = "kn_IN-syspin_male-medium.onnx"  # Hugging Face micahchoo/piper-kn
+SOUMYA_HOWTO = ("System Settings → Accessibility → Spoken Content → System voice → "
+                "Manage Voices… → Kannada → Soumya")
+
+
+class VoiceError(Exception):
+    """A Pāli voice cannot be used; the message is shown to the user."""
 
 
 # ── Pali filtering ────────────────────────────────────────────────────────────
@@ -278,6 +291,72 @@ def generate_audio_many(jobs, rate, voice):
     asyncio.run(run())
 
 
+# ── Offline Pāli voices: Piper (bundled) and the Mac's Soumya ─────────────────
+def rate_factor(rate):
+    """edge-tts rate ("-25%") → speed factor (0.75) for the offline voices, so that
+    every voice is equally fast at the same slider step."""
+    return 1 + int(rate.rstrip("%")) / 100
+
+def piper_model_path():
+    """The bundled Piper model, or None. Mac: Resources/voices; Windows (PyInstaller):
+    _internal/voices; from the source folder: ./voices."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for d in [os.path.join(here, "voices"),
+              os.path.join(getattr(sys, "_MEIPASS", here), "voices"),
+              os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "voices")]:
+        path = os.path.join(d, PIPER_MODEL)
+        if os.path.exists(path) and os.path.exists(path + ".json"):
+            return path
+    return None
+
+_piper = {}
+_piper_lock = threading.Lock()
+
+def piper_to_wav(kannada_text, path, factor):
+    model = piper_model_path()
+    if not model:
+        raise VoiceError("The offline Piper voice is missing: please reinstall.")
+    with _piper_lock:  # load once (about a second), then reuse
+        if "voice" not in _piper:
+            try:
+                from piper import PiperVoice
+            except Exception:  # onnxruntime: macOS 13 or newer only
+                raise VoiceError("The offline Piper voice needs macOS 13 or newer."
+                                 if IS_MAC else "The offline Piper voice could not start.")
+            _piper["voice"] = PiperVoice.load(model)
+        voice = _piper["voice"]
+        from piper import SynthesisConfig
+        cfg = SynthesisConfig(length_scale=voice.config.length_scale / factor)
+        with wave.open(path, "wb") as f:
+            voice.synthesize_wav(kannada_text, f, syn_config=cfg)
+
+def kannada_mac_voice():
+    """Name of the installed Mac Kannada voice (Soumya), or None."""
+    for label, name in _mac_voices() if IS_MAC else []:
+        if label.lower().startswith("kn-"):
+            return name
+    return None
+
+def pali_audio(jobs, rate, voice):
+    """jobs: [(kannada_text, path_without_extension)] → [audio file paths]
+    in the chosen Pāli voice."""
+    if voice not in OFFLINE_VOICES:
+        paths = [base + ".mp3" for _, base in jobs]
+        generate_audio_many([(t, p) for (t, _), p in zip(jobs, paths)], rate, voice)
+        return paths
+    factor = rate_factor(rate)
+    if voice == "piper":
+        for text, base in jobs:
+            piper_to_wav(text, base + ".src.wav", factor)
+        return [base + ".src.wav" for _, base in jobs]
+    name = kannada_mac_voice()
+    if not name:
+        raise VoiceError("Soumya is not installed (see Help): " + SOUMYA_HOWTO + ".")
+    for text, base in jobs:
+        say_to_file(text, base + ".aiff", round(ENGLISH_WPM * factor), name)
+    return [base + ".aiff" for _, base in jobs]
+
+
 # ── Translation voices: the computer's own, any language, offline ─────────────
 # macOS sound-effect voices: not useful for reading suttas
 NOVELTY_VOICES = {
@@ -471,9 +550,9 @@ def build_joined(parts, rate, voice, voice_for, mult, status=lambda msg: None):
         other = [(i, t) for i, (lang, t) in enumerate(parts) if lang != "kn"]
         if kn:
             status("Generating Pāli audio...")
-            for i, _ in kn:
-                srcs[i] = bases[i] + ".mp3"
-            generate_audio_many([(t, srcs[i]) for i, t in kn], rate, voice)
+            for (i, _), path in zip(kn, pali_audio([(t, bases[i]) for i, t in kn],
+                                                   rate, voice)):
+                srcs[i] = path
         if other:
             status("Generating translation audio...")
             groups = {}  # one call per voice (Windows: one PowerShell per voice)
@@ -744,10 +823,14 @@ class PaliTTSWindow:
         voice_frame = ttk.Frame(root)
         voice_frame.pack(anchor="w", pady=(8, 0))
         ttk.Label(voice_frame, text="Pāli voice:").pack(side="left", padx=(0, 10))
+        # Shown: the label; self.voice_var keeps the voice id (as saved in settings)
         self.voice_var = tk.StringVar(value=voice)
-        for label, voice_id in VOICES:
-            ttk.Radiobutton(voice_frame, text=label, variable=self.voice_var,
-                            value=voice_id).pack(side="left", padx=(0, 12))
+        self.voice_label_var = tk.StringVar(value=dict((v, l) for l, v in VOICES)[voice])
+        pali_combo = ttk.Combobox(voice_frame, textvariable=self.voice_label_var,
+                                  values=[l for l, _ in VOICES], state="readonly", width=30)
+        pali_combo.pack(side="left")
+        pali_combo.bind("<<ComboboxSelected>>", lambda e: self.voice_var.set(
+            dict(VOICES)[self.voice_label_var.get()]))
         en_frame = ttk.Frame(root)
         en_frame.pack(anchor="w", pady=(8, 0))
         ttk.Label(en_frame, text="Translation voice:").pack(side="left", padx=(0, 10))
@@ -910,22 +993,44 @@ class PaliTTSWindow:
             return
         win = self.help_win = tk.Toplevel(self.root)
         win.title("Read Pāli Aloud – Help")
-        win.geometry("560x520")
-        win.minsize(360, 260)
+        win.geometry("640x620")
+        win.minsize(380, 280)
+        dark = bool(self.dark_var.get())
         frame = tk.Frame(win)
         frame.pack(fill="both", expand=True)
-        box = tk.Text(frame, wrap="word", font=("", 10), padx=12, pady=10,
-                      relief="flat", borderwidth=0)
+        box = tk.Text(frame, wrap="word", font=("", 11), padx=22, pady=14,
+                      relief="flat", borderwidth=0, cursor="arrow", spacing2=2)
         scroll = ttk.Scrollbar(frame, command=box.yview)
         box.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         box.pack(side="left", fill="both", expand=True)
-        box.tag_configure("h", font=("", 11, "bold"), spacing1=8, spacing3=2)
+        accent = "#7fb3ff" if dark else "#1f5fae"
+        box.tag_configure("h", font=("", 14, "bold"), foreground=accent,
+                          spacing1=14, spacing3=6)
+        box.tag_configure("b", font=("", 11, "bold"))
+        box.tag_configure("li", lmargin1=6, lmargin2=24, spacing1=3)
+        box.tag_configure("sub", lmargin1=26, lmargin2=42, spacing1=1)
+        box.tag_configure("p", spacing1=3)
+        box.tag_configure("foot", foreground=MUTED, spacing1=12)
         for line in help_text(tray=self.tray is not None).splitlines():
+            if not line.strip():
+                continue
             if line.startswith("# "):
                 box.insert("end", line[2:] + "\n", "h")
+                continue
+            if line.startswith("  – "):
+                tag, line = "sub", "–  " + line[4:]
+            elif line.startswith("• ") or re.match(r"\d\. ", line):
+                tag = "li"
+                if line.startswith("• "):
+                    line = "•  " + line[2:]
+            elif line.startswith("Read Pāli Aloud "):
+                tag = "foot"
             else:
-                box.insert("end", line + "\n")
+                tag = "p"
+            for i, piece in enumerate(line.split("**")):  # odd pieces are **bold**
+                box.insert("end", piece, (tag, "b") if i % 2 else (tag,))
+            box.insert("end", "\n", (tag,))
         box.configure(state="disabled")
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=8)
         win.bind("<Escape>", lambda e: win.destroy())
@@ -1116,18 +1221,33 @@ class PaliTTSWindow:
         self.busy = True
         self.time_var.set("")
         self.play_btn.config(state="disabled")
-        self.status_var.set("Connecting...")
+        self.status_var.set("Generating..." if key[3] in OFFLINE_VOICES else "Connecting...")
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
     def _generate(self, key):
         mode, segs, speed, voice, en_voice, en_speed = key
         _, rate, _ = SPEEDS[speed]
-        if mode == "pi":  # one MP3 straight from Microsoft
+        offline = voice in OFFLINE_VOICES
+        failed = ("Audio generation failed." if offline
+                  else "Audio generation failed — check internet.")
+        if mode == "pi":  # Microsoft: one MP3; offline voices: one WAV
             try:
                 self._set_status("Transliterating...")
                 kannada = to_kannada(segs[0][1])
             except Exception:
                 self._after(self._generation_failed, "Transliteration failed — check internet.")
+                return
+            if offline:
+                try:
+                    self._set_status("Generating audio...")
+                    out, secs = build_joined([("kn", kannada)], rate, voice, None, 1.0)
+                except VoiceError as e:
+                    self._after(self._generation_failed, str(e))
+                    return
+                except Exception:
+                    self._after(self._generation_failed, failed)
+                    return
+                self._after(self._generated, key, out, secs)
                 return
             tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
             os.close(tmp_fd)
@@ -1136,7 +1256,7 @@ class PaliTTSWindow:
                 generate_audio(kannada, tmp_path, rate, voice)
             except Exception:
                 _unlink(tmp_path)
-                self._after(self._generation_failed, "Audio generation failed — check internet.")
+                self._after(self._generation_failed, failed)
                 return
             self._after(self._generated, key, tmp_path, audio_duration(tmp_path))
             return
@@ -1150,8 +1270,11 @@ class PaliTTSWindow:
             voice_for = (lambda lang: pick_voice(voices, lang)) if en_voice == "auto" \
                 else (lambda lang: en_voice)
             out, secs = build_joined(parts, rate, voice, voice_for, en_speed, self._set_status)
+        except VoiceError as e:
+            self._after(self._generation_failed, str(e))
+            return
         except Exception:
-            self._after(self._generation_failed, "Audio generation failed — check internet.")
+            self._after(self._generation_failed, failed)
             return
         self._after(self._generated, key, out, secs)
 
@@ -1263,7 +1386,7 @@ class PaliTTSWindow:
             name = base + "_" + datetime.now().strftime("%H%M%S") + ext
             path = os.path.join(dl, name)
         try:
-            if mode == "pi":  # already MP3 from Microsoft
+            if self.audio_path.endswith(".mp3"):  # already MP3 from Microsoft
                 shutil.copy(self.audio_path, path)
             else:
                 wav_to_mp3(self.audio_path, path)
@@ -1454,98 +1577,112 @@ def read_input():
 
 # Languages "Auto (by language)" recognises (needs a voice of that language installed)
 AUTO_LANGUAGES = (
-    "By their script: Chinese, Japanese, Korean, Thai, Lao, Khmer, Burmese, Sinhala, "
+    "• **By their script:** Chinese, Japanese, Korean, Thai, Lao, Khmer, Burmese, Sinhala, "
     "Hindi (all Devanagari text), Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, "
     "Punjabi, Arabic, Hebrew, Greek, Russian (all Cyrillic text), Ukrainian, Georgian.\n"
-    "By common words, in Latin letters: English, Malay (uses an Indonesian voice if there "
+    "• **By common words, in Latin letters:** English, Malay (an Indonesian voice if there "
     "is no Malay one), Spanish, French, German, Italian, Portuguese, Dutch, Tagalog; "
     "Vietnamese by its letters.\n"
-    "Anything else, and very short lines, is read as English with the system voice.")
+    "• Anything else, and very short lines, is read as English with the system voice.")
 
 
 def help_text(tray=False):
-    """Help window text; lines starting with "# " are headings."""
-    if IS_MAC:
-        open_it = (
-            "# Open it with selected text\n"
-            "• Select text in any app (browser, PDF, Word...) and press Cmd+Shift+Y.\n"
-            "• Or right-click the selection → Services → Read Pali Aloud. This works in "
-            "every Mac app.\n"
+    """Help window text. Markup: "# " heading, "• " bullet, "  – " sub-bullet,
+    **bold**; an empty line separates sections."""
+    mac = IS_MAC
+    key = "Cmd+Shift+Y" if mac else "Ctrl+Shift+Y"
+    S = []
+    S.append(
+        "# Quick start\n"
+        "1. Select Pāli text in any " + ("app" if mac else "program") + " and press **" + key
+        + "**.\n"
+        "2. Press **▶ Play** (or the Space bar).\n"
+        "3. Choose the speed and the voice below the text, then Play again.")
+    if mac:
+        S.append(
+            "# Opening it with selected text\n"
+            "• Select text in any app (browser, PDF, Word…) and press **Cmd+Shift+Y**.\n"
+            "• Or right-click the selection → **Services → Read Pali Aloud**.\n"
             "• Or open Read Pāli Aloud from Launchpad / Applications and paste text.\n"
             "• Change the shortcut: System Settings → Keyboard → Keyboard Shortcuts → "
             "Services → Text → Read Pali Aloud.\n"
             "• If the shortcut or menu item does not work at first: log out and in again.")
-        quit_it = (
-            "# Closing\n"
-            "• Close (or the red button) closes the app. Nothing keeps running "
-            "in the background: the shortcut and the Services menu start it again.")
-        voices = ("System Settings → Accessibility → Spoken Content → System voice → "
-                  "Manage Voices")
     else:
-        open_it = (
-            "# Open it with selected text\n"
-            "• Select text in any program and press Ctrl+Shift+Y. The window opens with "
-            "that text.\n"
-            "• Or select text with the mouse: a small blue \u25B6 Read Pāli button appears "
-            "next to the mouse. Click it to read the text aloud at once.\n"
-            "   – Press Esc, or click anywhere else, to hide the button.\n"
-            "   – Turn the button off: untick \"Show a \u25B6 Read Pāli button when I select "
-            "text\" in this window, or right-click the tray icon → Pause Floating Popup.\n"
-            "• The text is read straight from the program (Windows UI Automation), without "
-            "copying: the clipboard is not changed, so clipboard tools such as GoldenDict "
-            "are not set off. Works in Edge, Chrome, Word, Notepad and most programs.\n"
-            "• A few programs (some PDF readers, for example) do not share their text this "
-            "way: there the button does not appear, and Ctrl+Shift+Y copies the selection "
-            "instead (this does replace the clipboard).\n"
-            "• Windows has no right-click menu item for selected text in all programs; use "
-            "Ctrl+Shift+Y or the button.\n"
-            "• Or open Read Pāli Aloud from the Start menu and paste text.\n"
-            "\n"
-            "# Tray icon (bottom right of the taskbar)\n"
-            "• Read Pāli Aloud keeps running in the tray, so the shortcut and the button "
-            "always work. If you don't see the icon, click the ^ arrow next to the clock.\n"
-            "• Click the icon: open this window.\n"
-            "• Right-click the icon: Settings (this window), Pause Floating Popup (tick = "
-            "the button is off), Help, Exit.\n"
-            "\n"
-            "# Closing and exiting\n"
-            "• Close (or the window's ×) only hides the window; the app stays in the tray.\n"
-            "• To quit completely: right-click the tray icon → Exit. Ctrl+Shift+Y and the "
-            "button then stop working until you open Read Pāli Aloud again.\n"
-            "• \"Run on Windows startup\" (in this window) starts it in the tray when you "
-            "sign in to Windows.")
-        quit_it = ""
-        voices = "Settings → Time & language → Speech → Add voices"
-    parts = [open_it,
-             "# Play, pause and stop\n"
-             "• \u25B6 Play reads the text; it becomes \u23F8 Pause, then \u25B6 Resume.\n"
-             "• \u23F9 Stop stops; the next Play starts from the beginning.\n"
-             "• Space bar = play / pause. When you are typing in the text box, press Esc "
-             "first (Esc leaves the text box), then Space.\n"
-             "• The time shows how far it has read and how long the audio is.",
-             "# Settings in the window\n"
-             "• Pāli speed: 0.33x to 1.67x. Translation speed: 0.75x to 3x.\n"
-             "• Read: Pāli only, Translation only (every line that is not Pāli), or Both "
-             "in order.\n"
-             "• Pāli voice: Male or Female (Microsoft's Kannada voices; needs internet).\n"
-             "• Translation voice: one of this computer's own voices (no internet "
-             "needed). More voices: " + voices + ".\n"
-             "• Save audio to Downloads: saves an MP3; the speed is in the file name.\n"
-             "• Dark mode: top right.\n"
-             "• The window can be made bigger; the text box grows with it.\n"
-             "• All settings, the window size and dark mode are remembered.",
-             "# Auto (by language) translation voice\n"
-             "Picks a voice for each translation line from its language, if a voice of "
-             "that language is installed.\n" + AUTO_LANGUAGES,
-             "# Good to know\n"
-             "• Lines are sorted into Pāli and translation one by one. Pāli without "
-             "diacritics is recognised too; very short lines in other languages that end "
-             "in vowels may be taken for Pāli.\n"
-             "• Quotation marks are left out of the Pāli; dashes become short pauses.\n"
-             "• The Pāli voice needs speech.platform.bing.com (internet)."]
-    if quit_it:
-        parts.append(quit_it)
-    return "\n\n".join(parts) + "\n\nRead Pāli Aloud " + APP_VERSION
+        S.append(
+            "# Opening it with selected text\n"
+            "• Select text in any program and press **Ctrl+Shift+Y**: the window opens "
+            "with that text.\n"
+            "• Or select text with the mouse: a small blue **▶ Read Pāli** button appears "
+            "next to the mouse. Click it to hear the text at once.\n"
+            "  – Esc, or a click anywhere else, hides the button.\n"
+            "  – Turn it off: untick \"Show a ▶ Read Pāli button…\" in this window, or "
+            "right-click the tray icon → Pause Floating Popup.\n"
+            "• The text is read straight from the program, without copying, so the "
+            "clipboard (and tools such as GoldenDict) is not touched. A few programs "
+            "(some PDF readers) don't share their text: there Ctrl+Shift+Y copies the "
+            "selection instead.\n"
+            "• Or open Read Pāli Aloud from the Start menu and paste text.")
+    S.append(
+        "# Play, pause and stop\n"
+        "• **▶ Play** reads the text; it becomes **⏸ Pause**, then **▶ Resume**.\n"
+        "• **⏹ Stop** stops; the next Play starts from the beginning.\n"
+        "• **Space bar** = play / pause. While typing in the text box, press Esc first.\n"
+        "• The time shows how far it has read and how long the audio is.")
+    pali = (
+        "# Pāli voices\n"
+        "Pāli is turned into Kannada script and read by a Kannada voice.\n"
+        "• **Male / Female · Microsoft (online)**: natural voices; need internet.\n"
+        "• **Male · Piper (offline)**: comes with the app; works without internet.")
+    if mac:
+        pali += (
+            " Needs macOS 13 (Ventura) or newer.\n"
+            "• **Female · Soumya, Mac (offline)**: the Mac's own Kannada voice. To get it "
+            "(free, once):\n"
+            "  – Open **System Settings → Accessibility → Spoken Content**.\n"
+            "  – Click the **ⓘ** next to System voice (or **Manage Voices…**).\n"
+            "  – Find **Kannada**, tick **Soumya** and wait for the download.\n"
+            "  – Your system voice does not have to change; Soumya works at once.")
+    S.append(pali)
+    voices = ("System Settings → Accessibility → Spoken Content → System voice → "
+              "Manage Voices" if mac else "Settings → Time & language → Speech → Add voices")
+    S.append(
+        "# Translation voices\n"
+        "• **Read:** Pāli only, Translation only (every line that is not Pāli), or Both, "
+        "in order.\n"
+        "• **Translation voice:** one of this computer's own voices (offline). More "
+        "voices: " + voices + ".\n"
+        "• **Auto (by language)** picks a voice for each line from its language, if such "
+        "a voice is installed:\n" + AUTO_LANGUAGES.replace("• ", "  – "))
+    S.append(
+        "# Other settings\n"
+        "• **Pāli speed:** 0.33x to 1.67x. **Translation speed:** 0.75x to 3x.\n"
+        "• **Save audio to Downloads:** saves an MP3; the speed is in the file name.\n"
+        "• **Dark mode:** top right.\n"
+        "• The window can be made bigger; the text box grows with it.\n"
+        "• All settings, the window size and dark mode are remembered.")
+    if mac:
+        S.append(
+            "# Closing\n"
+            "• Close (or the red button) closes the app; nothing keeps running. The "
+            "shortcut and the Services menu start it again.")
+    else:
+        S.append(
+            "# Tray icon and closing\n"
+            "• Read Pāli Aloud keeps running in the **tray** (bottom right; maybe under "
+            "the ^ arrow), so the shortcut and the button always work.\n"
+            "• Click the icon: open this window. Right-click: Settings, Pause Floating "
+            "Popup, Help, Exit.\n"
+            "• **Close** only hides the window. To quit completely: tray icon → **Exit**.\n"
+            "• **Run on Windows startup** (in this window) starts it when you sign in.")
+    S.append(
+        "# Good to know\n"
+        "• Lines are sorted into Pāli and translation one by one. Pāli without "
+        "diacritics is recognised too; very short lines in other languages that end in "
+        "vowels may be taken for Pāli.\n"
+        "• Quotation marks are left out of the Pāli; dashes become short pauses.\n"
+        "• ññ (aññaṃ, paññā) is spelled so that it sounds right (the teacher's choice).\n"
+        "• Online voices need speech.platform.bing.com.")
+    return "\n\n".join(S) + "\n\nRead Pāli Aloud " + APP_VERSION
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

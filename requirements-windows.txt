@@ -4,3 +4,4 @@ certifi
 miniaudio
 lameenc
 comtypes
+piper-tts

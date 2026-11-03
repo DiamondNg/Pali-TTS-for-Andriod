@@ -2,7 +2,8 @@
 
 Reads Pāḷi text aloud. Pāḷi in Roman script (IAST) is converted to Kannada script with
 [Aksharamukha](https://aksharamukha.appspot.com) and spoken by Microsoft's Kannada neural voices
-(`kn-IN-GaganNeural` male / `kn-IN-SapnaNeural` female, via `edge-tts`, needs internet). Lines in
+(`kn-IN-GaganNeural` male / `kn-IN-SapnaNeural` female, via `edge-tts`, needs internet), or
+offline by the Piper Kannada voice ([micahchoo/piper-kn](https://huggingface.co/micahchoo/piper-kn)) or the Mac's Soumya. Lines in
 other languages (English, Chinese, Malay…) can be read by the computer's own voices.
 
 **Current version: 2.6** — download the installers from
@@ -23,7 +24,8 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 - Speed slider for Pāḷi (0.33x–1.67x) and a separate one for translations (0.75x–3x).
 - **Read:** Pāḷi / Translation / Both. Pāḷi lines are detected automatically; translation lines
   in any language use the computer's own voices ("Auto (by language)" picks one per line).
-- Pāḷi voice: Male or Female. ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
+- Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
+  macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
 - Save audio to Downloads as MP3.
 - Dark mode; all settings, the window size and dark mode are remembered.
@@ -41,9 +43,8 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 
 ## In progress / ideas
 
-- **Offline Kannada voices** (no internet needed): being evaluated with a small test kit,
-  see [`tools/offline_voices/README.md`](tools/offline_voices/README.md) — Piper (neural),
-  eSpeak NG (rule-based) and the Mac's own Kannada voice *Soumya*.
+- The offline voices were chosen with the test kit in
+  [`tools/offline_voices/`](tools/offline_voices/README.md) (Piper, eSpeak NG, Soumya).
 - Mobile apps (Android / iOS).
 
 ## Repository layout
@@ -54,6 +55,7 @@ Install Pali TTS.command     macOS installer (builds the .app and the Service, s
 README_Mac.txt               macOS instructions
 windows/                     Windows entry point, tray app, hotkey, UI Automation, Inno Setup script
 tools/offline_voices/        offline Kannada voice test kit (Mac)
+.github/scripts/             CI helpers: GUI tests, Piper model download (Hugging Face), slimming
 tools/                       icon maker, other tools
 android/, ios/               early mobile versions
 .github/workflows/           builds and tests: build_macos.yml (DMG), build_windows.yml (installer),
@@ -68,5 +70,5 @@ tests); a `v*` tag or a published Release attaches them to the Release. The vers
 
 ## Network domains (filtered networks)
 
-- `speech.platform.bing.com` (Microsoft voices, WSS 443)
+- `speech.platform.bing.com` (Microsoft voices, WSS 443; not needed for the offline voices)
 - `aksharamukha-plugin.appspot.com` (fallback transliteration, HTTPS 443)

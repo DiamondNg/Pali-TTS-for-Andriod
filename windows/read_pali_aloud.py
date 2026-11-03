@@ -39,6 +39,16 @@ def selftest(out_path):
         pali_tts.wav_to_mp3(os.path.join(work, "j.wav"), os.path.join(work, "j.mp3"))
         lines.append("mp3: %d bytes" % os.path.getsize(os.path.join(work, "j.mp3")))
         pali_tts.to_wav(os.path.join(work, "j.mp3"), os.path.join(work, "back.wav"))
+        # Offline Pāli voice (Piper), alone and in Both mode
+        lines.append("piper model: %s" % pali_tts.piper_model_path())
+        kn = pali_tts.to_kannada("Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā sāvatthiyaṃ viharati.")
+        for rate in ["-25%", "-75%"]:
+            out, secs = pali_tts.build_joined([("kn", kn)], rate, "piper", None, 1.0)
+            lines.append("piper %s: %.2f s" % (rate, secs))
+            assert secs > 1.5, "Piper audio too short"
+        out, secs = pali_tts.build_joined([("kn", kn), ("en", "Thus have I heard.")],
+                                          "-25%", "piper", lambda lang: "", 1.0)
+        lines.append("both with piper: %.2f s" % secs)
         lines.append("auto voices: %r" % {lang: pali_tts.pick_voice(voices, lang)
                                           for lang in ["en", "zh", "ja", "ms", "es"]})
         import tray, uia  # noqa: F401  (UI Automation wrappers must be bundled)

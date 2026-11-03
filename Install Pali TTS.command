@@ -63,6 +63,11 @@ cp "$SCRIPT_DIR/pali_tts.py" "$C/Resources/pali_tts.py"
 if [ -f "$SCRIPT_DIR/.assets/AppIcon.icns" ]; then
     cp "$SCRIPT_DIR/.assets/AppIcon.icns" "$C/Resources/AppIcon.icns"
 fi
+# Offline Pāli voice (Piper, Kannada male)
+if [ -d "$SCRIPT_DIR/.assets/voices" ]; then
+    ditto "$SCRIPT_DIR/.assets/voices" "$C/Resources/voices"
+fi
+VERSION=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' "$SCRIPT_DIR/pali_tts.py")
 
 cat > "$C/MacOS/ReadPaliAloud" << 'LAUNCHER'
 #!/bin/bash
@@ -87,8 +92,8 @@ cat > "$C/Info.plist" << PLIST
     <key>CFBundleExecutable</key><string>ReadPaliAloud</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>2.5</string>
-    <key>CFBundleVersion</key><string>2.5</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$VERSION</string>
     <key>LSMinimumSystemVersion</key><string>10.15</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>
