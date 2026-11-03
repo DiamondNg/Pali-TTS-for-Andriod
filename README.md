@@ -29,7 +29,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 - Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
   macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
-- Save audio to Downloads as MP3.
+- Save audio as MP3 to Downloads, or to a folder you choose ("Change folder…").
 - Dark mode; all settings, the window size and dark mode are remembered.
 - Help button in the window.
 - Windows only: runs in the tray, starts with Windows (optional), reads the selection
