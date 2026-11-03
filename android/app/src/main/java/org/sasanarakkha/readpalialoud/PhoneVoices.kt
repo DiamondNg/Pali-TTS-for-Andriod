@@ -18,15 +18,15 @@ class VoiceError(message: String) : Exception(message)
 
 /** The phone's own text-to-speech voices (Google, Samsung, ...): translations in any
  *  language, and the offline Kannada voice for Pāli. */
-class PhoneVoices(context: Context) {
+class PhoneVoices(context: Context, engine: String? = null) {
     private val ready = CountDownLatch(1)
     @Volatile private var ok = false
     private val waits = ConcurrentHashMap<String, CountDownLatch>()
     private val errors = ConcurrentHashMap<String, Int>()
-    private val tts = TextToSpeech(context.applicationContext) { status ->
+    private val tts = TextToSpeech(context.applicationContext, { status ->
         ok = status == TextToSpeech.SUCCESS
         ready.countDown()
-    }
+    }, engine)
 
     init {
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -132,9 +132,8 @@ class PhoneVoices(context: Context) {
     companion object {
         val KANNADA = Locale("kn", "IN")
         const val TTS_SETTINGS = "Phone Settings → search \"Text-to-speech\"."
-        const val KANNADA_HOWTO = "The phone has no Kannada voice. Install one: " +
-            "Phone Settings → search \"Text-to-speech\" → ⚙ next to the engine (Google) → " +
-            "Install voice data → Kannada. Or choose a Microsoft voice (needs internet)."
+        const val KANNADA_HOWTO = "Google's Kannada voice is not installed yet: tap " +
+            "\"Offline Kannada voice…\" for the steps, or choose a Microsoft voice (needs internet)."
 
         // Same as PREFERRED_REGION / SIMILAR_LANGUAGE in pali_tts.py
         val PREFERRED_REGION = mapOf("en" to "US", "zh" to "CN", "pt" to "BR", "es" to "ES",

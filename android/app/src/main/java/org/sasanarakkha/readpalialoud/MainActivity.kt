@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
@@ -39,13 +40,26 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
 
+/** What was asked for: the same key → the audio already made is reused. */
+data class Key(val mode: String, val segs: List<Pair<String, String>>, val speed: Int,
+               val voice: String, val enVoice: String?, val enSpeed: Double?)
+
+/** Kept while the app lives, also when the window is closed and opened again. */
+object Session {
+    var playKey: Key? = null
+    var playText: String? = null
+    var audio: File? = null
+    var audioKey: Key? = null
+    var counter = 0
+}
+
 class MainActivity : AppCompatActivity() {
 
     // Pāli voices: (label, id). Same Microsoft voices as on the desktop.
     private val paliVoices = listOf(
         "Male · Microsoft (online)" to "kn-IN-GaganNeural",
         "Female · Microsoft (online)" to "kn-IN-SapnaNeural",
-        "Kannada · this phone's voice (offline)" to ANDROID_KANNADA,
+        "Kannada · Google voice on this phone (offline)" to ANDROID_KANNADA,
     )
     private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_tts.py
     private var translationSpeeds = listOf(0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0)
@@ -72,19 +86,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bridge: PyObject
     private lateinit var phone: PhoneVoices
 
-    /** What was asked for: same key → the audio already made is reused. */
-    private data class Key(val mode: String, val segs: List<Pair<String, String>>,
-                           val speed: Int, val voice: String, val enVoice: String?,
-                           val enSpeed: Double?)
+    private lateinit var kannada: PhoneVoices  // Google's engine if installed (has Kannada)
 
     private var busy = false
-    private var player: MediaPlayer? = null
-    private var paused = false
-    private var playKey: Key? = null
-    private var audio: File? = null
-    private var audioKey: Key? = null
-    private var counter = 0
-    private var focusRequest: AudioFocusRequest? = null
+    // The audio made last and what it was made from: kept while the app lives (Session)
+    private var playKey by Session::playKey
+    private var playText by Session::playText
+    private var audio by Session::audio
+    private var audioKey by Session::audioKey
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,6 +119,9 @@ class MainActivity : AppCompatActivity() {
         setUpControls()
         restoreSettings()
         phone = PhoneVoices(this)
+        kannada = if (googleTtsInstalled()) PhoneVoices(this, GOOGLE_TTS) else phone
+        Playback.listener = Playback.Listener { showPlayback() }
+        showPlayback()
         status.text = "Starting…"
         worker.execute {
             try {
@@ -145,7 +157,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        releasePlayer()
+        // Reading goes on (Playback); only the window's helpers end
+        Playback.listener = null
+        ui.removeCallbacks(ticker)
+        if (kannada !== phone) kannada.shutdown()
         phone.shutdown()
         worker.shutdownNow()
         super.onDestroy()
@@ -216,6 +231,7 @@ class MainActivity : AppCompatActivity() {
         playBtn.setOnClickListener { toggle() }
         stopBtn.setOnClickListener { stop() }
         saveBtn.setOnClickListener { save() }
+        findViewById<Button>(R.id.kannada_setup).setOnClickListener { kannadaSetup() }
         saveBtn.isEnabled = false
         updateSpeedLabels()
     }
@@ -291,18 +307,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── Play / Pause / Stop ───────────────────────────────────────────────────
-    private fun isPlaying() = player != null
+    private fun isPlaying() = Playback.active
 
     private fun toggle() {
         if (busy) return
         if (isPlaying()) {
-            if (!paused) {
-                pause()
+            if (!Playback.paused) {
+                Playback.pause()
                 return
             }
             // Paused: resume, unless the text, speed or voice changed meanwhile
             if (unchangedSincePlay()) {
-                resume()
+                Playback.resume()
                 return
             }
             stop()
@@ -318,8 +334,6 @@ class MainActivity : AppCompatActivity() {
             (k.mode == "pi" || (k.enVoice == selectedEnVoiceId() && k.enSpeed == currentEnSpeed())) &&
             playText == text.text.toString()
     }
-
-    private var playText: String? = null
 
     private fun start() {
         val content = text.text.toString().trim()
@@ -376,7 +390,7 @@ class MainActivity : AppCompatActivity() {
     private fun generate(key: Key): File {
         val work = File(cacheDir, "audio").apply { mkdirs() }
         work.listFiles()?.forEach { if (it != audio) it.delete() }  // old audio
-        val tag = "%d_%d".format(System.currentTimeMillis(), ++counter)
+        val tag = "%d_%d".format(System.currentTimeMillis(), ++Session.counter)
         setStatus("Transliterating…")
         val parts = key.segs.map { (lang, t) ->
             if (lang == "pi") "kn" to bridge.callAttr("kannada", t).toString() else lang to t
@@ -386,9 +400,9 @@ class MainActivity : AppCompatActivity() {
         if (kn.isNotEmpty()) {
             setStatus("Generating Pāli audio…")
             if (key.voice == ANDROID_KANNADA) {
-                val v = phone.kannadaVoice()
+                val v = kannada.kannadaVoice()
                 val factor = bridge.callAttr("rate_factor", key.speed).toFloat()
-                for (i in kn) files[i] = phone.synthesize(parts[i].second, v, factor,
+                for (i in kn) files[i] = kannada.synthesize(parts[i].second, v, factor,
                     File(work, "${tag}_$i"), PhoneVoices.KANNADA)
             } else {
                 val jobs = JSONArray()
@@ -430,130 +444,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun play(file: File) {
-        releasePlayer()
-        val mp = MediaPlayer()
-        try {
-            mp.setAudioAttributes(AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-            mp.setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)  // keeps playing with the screen off
-            mp.setDataSource(file.path)
-            mp.prepare()
-        } catch (e: Exception) {
-            Log.e(TAG, "play failed", e)
-            mp.release()
-            status.text = "Could not play the audio."
-            return
-        }
-        mp.setOnCompletionListener { finished() }
-        player = mp
-        paused = false
-        requestFocus()
-        mp.start()
-        status.text = "Playing…"
-        playBtn.text = getString(R.string.pause)
-        tick()
+        val first = audioKey?.segs?.firstOrNull()?.second.orEmpty()
+        val title = first.split(Regex("\\s+")).take(6).joinToString(" ")
+        if (!Playback.play(this, file, title)) status.text = "Could not play the audio."
     }
 
-    private fun pause() {
-        player?.pause()
-        paused = true
-        playBtn.text = getString(R.string.resume)
-        status.text = "Paused"
-    }
+    private fun stop() = Playback.stop()
 
-    private fun resume() {
-        requestFocus()
-        player?.start()
-        paused = false
-        playBtn.text = getString(R.string.pause)
-        status.text = "Playing…"
-        tick()
-    }
-
-    private fun finished() {
-        releasePlayer()
-        status.text = "Finished"
-    }
-
-    private fun stop() {
-        if (player != null) {
-            releasePlayer()
-            status.text = "Stopped"
-        }
-    }
-
-    private fun releasePlayer() {
+    /** Shows the player's state (also after the window was closed and opened again). */
+    private fun showPlayback() {
         ui.removeCallbacks(ticker)
-        player?.let {
-            try { it.stop() } catch (e: Exception) {}
-            it.release()
+        when {
+            !Playback.active -> {
+                playBtn.text = getString(R.string.play)
+                if (Playback.lastEvent.isNotEmpty() && !busy) status.text = Playback.lastEvent
+            }
+            Playback.paused -> {
+                playBtn.text = getString(R.string.resume)
+                status.text = "Paused"
+                tick()
+            }
+            else -> {
+                playBtn.text = getString(R.string.pause)
+                status.text = "Playing…"
+                tick()
+            }
         }
-        player = null
-        paused = false
-        if (::playBtn.isInitialized) playBtn.text = getString(R.string.play)
-        abandonFocus()
+        saveBtn.isEnabled = audio?.exists() == true
     }
 
     private val ticker = Runnable { tick() }
 
     private fun tick() {
-        val mp = player ?: return
-        try {
-            time.text = fmt(mp.currentPosition) + " / " + fmt(mp.duration)
-        } catch (e: IllegalStateException) {
-            return
-        }
+        if (!Playback.active) return
+        time.text = fmt(Playback.position) + " / " + fmt(Playback.duration)
         ui.removeCallbacks(ticker)
-        if (!paused) ui.postDelayed(ticker, 250)
+        if (!Playback.paused) ui.postDelayed(ticker, 250)
     }
 
     private fun fmt(ms: Int): String {
         val s = (ms / 1000).coerceAtLeast(0)
         return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60)
         else "%d:%02d".format(s / 60, s % 60)
-    }
-
-    // Pause when another app plays sound, a call comes in, or headphones are unplugged
-    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
-        if (change < 0 && isPlaying() && !paused) ui.post { pause() }
-    }
-    private val noisy = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (isPlaying() && !paused) pause()
-        }
-    }
-    private var noisyRegistered = false
-
-    @Suppress("DEPRECATION")
-    private fun requestFocus() {
-        val am = getSystemService(AUDIO_SERVICE) as AudioManager
-        if (Build.VERSION.SDK_INT >= 26) {
-            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                .setOnAudioFocusChangeListener(focusListener).build()
-            focusRequest = req
-            am.requestAudioFocus(req)
-        } else {
-            am.requestAudioFocus(focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
-        }
-        if (!noisyRegistered) {
-            registerReceiver(noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
-            noisyRegistered = true
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun abandonFocus() {
-        val am = getSystemService(AUDIO_SERVICE) as AudioManager
-        if (Build.VERSION.SDK_INT >= 26) focusRequest?.let { am.abandonAudioFocusRequest(it) }
-        else am.abandonAudioFocus(focusListener)
-        focusRequest = null
-        if (noisyRegistered) {
-            try { unregisterReceiver(noisy) } catch (e: Exception) {}
-            noisyRegistered = false
-        }
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -597,6 +529,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ── The phone's own (Google) Kannada voice ───────────────────────────────────────
+    private fun googleTtsInstalled() = try {
+        packageManager.getPackageInfo(GOOGLE_TTS, 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    private fun tryStart(vararg intents: Intent): Boolean {
+        for (i in intents) {
+            try {
+                startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return true
+            } catch (e: Exception) {}
+        }
+        status.text = "Could not open the settings on this phone: see Help."
+        return false
+    }
+
+    /** Steps to get Google's offline Kannada voice, with buttons that open the right screens. */
+    private fun kannadaSetup() {
+        val installed = googleTtsInstalled()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Offline Kannada voice (Google)")
+            .setMessage(KANNADA_STEPS + if (installed) "" else
+                "\n\nThis phone does not have \"Speech Services by Google\" yet: tap \"Get Google's voices\" first.")
+            .setPositiveButton(if (installed) "Install Kannada" else "Get Google's voices") { _, _ ->
+                if (installed) {
+                    tryStart(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).setPackage(GOOGLE_TTS),
+                        Intent(TTS_SETTINGS_ACTION))
+                } else {
+                    tryStart(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$GOOGLE_TTS")),
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$GOOGLE_TTS")))
+                }
+            }
+            .setNeutralButton("Speech settings") { _, _ -> tryStart(Intent(TTS_SETTINGS_ACTION)) }
+            .setNegativeButton("Use it") { _, _ ->
+                paliVoice.setSelection(paliVoices.indexOfFirst { it.second == ANDROID_KANNADA })
+            }
+            .show()
+    }
+
     // ── Help ──────────────────────────────────────────────────────────────────
     private fun showHelp() {
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
@@ -623,6 +597,14 @@ class MainActivity : AppCompatActivity() {
                 val m = File(cacheDir, "tj.m4a")
                 AudioTools.toM4a(j, m)
                 Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
+                // Background player: plays the joined (silent) file → notification appears
+                val tone = File(cacheDir, "tone.wav").also {
+                    AudioTools.writeWav(it, ShortArray(24000 * 20) { i -> (Math.sin(i * 0.06) * 3000).toInt().toShort() })
+                }
+                ui.post {
+                    val ok = Playback.play(this, tone, "Selftest tone")
+                    Log.i(TAG, "SELFTEST playback started: $ok")
+                }
                 Log.i(TAG, "SELFTEST OK")
             } catch (e: Throwable) {
                 Log.e(TAG, "SELFTEST FAILED", e)
@@ -633,6 +615,15 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val TAG = "PaliTTS"
         const val ANDROID_KANNADA = "android-kn"
+        const val GOOGLE_TTS = "com.google.android.tts"
+        const val TTS_SETTINGS_ACTION = "com.android.settings.TTS_SETTINGS"
+        val KANNADA_STEPS = """
+            Google's Kannada voice works without internet. To install it once:
+            1. Tap "Install Kannada" (or Phone Settings → search "Text-to-speech" → ⚙ next to "Speech Services by Google" → Install voice data).
+            2. Find Kannada (ಕನ್ನಡ) in the list and tap the download arrow ⤓. Wait until it is downloaded.
+            3. Come back here and choose the Pāli voice "Kannada · Google voice on this phone (offline)".
+            Your phone does not need Google as its main voice: this app asks Google directly.
+        """.trimIndent()
         const val AUTO_VOICE = "auto"
         const val AUTO_LABEL = "Auto (by language)"
         const val SYSTEM_LABEL = "Phone's default voice"
@@ -648,7 +639,11 @@ class MainActivity : AppCompatActivity() {
 
             PĀLI VOICE
             • Microsoft Male/Female: the best quality; needs internet.
-            • This phone's Kannada voice: works offline, if the phone has one (Phone Settings → search "Text-to-speech" → ⚙ next to Google → Install voice data → Kannada).
+            • Kannada · Google voice on this phone: works offline once installed. Tap "Offline Kannada voice…" under the Pāli voice for the steps:
+              Phone Settings → search "Text-to-speech" → ⚙ next to "Speech Services by Google" → Install voice data → Kannada (ಕನ್ನಡ) → download.
+
+            LISTENING IN THE BACKGROUND
+            • Reading goes on with the screen off or in other apps. Pause / Play / Stop are in the notification and on the lock screen (and on headphone buttons).
 
             TRANSLATION VOICE
             • Auto: a voice for each line's language (English, Chinese, Malay, …). Add languages in the phone's text-to-speech settings.
