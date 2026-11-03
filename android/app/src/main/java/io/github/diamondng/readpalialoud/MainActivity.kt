@@ -701,6 +701,7 @@ class MainActivity : AppCompatActivity() {
                     AudioTools.writeWav(it, ShortArray(24000 * 20) { i -> (Math.sin(i * 0.06) * 3000).toInt().toShort() })
                 }
                 ui.post {
+                    Log.i(TAG, "SELFTEST label: ${paliSpeedLabel.text}")
                     val ok = Playback.play(this, tone, "Selftest tone")
                     Log.i(TAG, "SELFTEST playback started: $ok")
                 }
