@@ -85,6 +85,8 @@ val copyCore = tasks.register<Copy>("copyPaliCore") {
     into(corePython)
 }
 tasks.named("preBuild") { dependsOn(copyCore) }
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("PythonSources") }
+    .configureEach { dependsOn(copyCore) }
 
 chaquopy {
     defaultConfig {
