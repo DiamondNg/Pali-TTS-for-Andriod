@@ -69,7 +69,24 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - v2.7 on branch `claude/busy-bell-5kx2wl`: save folder choosable ("Save audio to: <folder>" +
   "Change folder…" → `filedialog.askdirectory`), setting `save_dir` (default `default_save_dir()` =
   ~/Downloads); missing folder → error message, no silent fallback. Untested locally (no Tk).
-- Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
+- Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
+  (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
+- Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
+  `android/` = Gradle project (AGP 8.7.3, Kotlin 2.0.21, Chaquopy 16.1.0, Python 3.12, minSdk 24,
+  targetSdk 35, id `org.sasanarakkha.readpalialoud`). Kotlin UI (`MainActivity.kt`,
+  `PhoneVoices.kt` = Android TextToSpeech, `AudioTools.kt` = MediaCodec decode/join/AAC M4A)
+  + `app/src/main/python/bridge.py` importing the shared `pali_tts.py` (copied at build;
+  tkinter import now optional). Pip `--no-deps` from `app/requirements.txt` (all pure Python);
+  aksharamukha deps regex/yaml/requests/langcodes/fontTools stubbed in bridge.py (verified
+  identical output, 362 lines). Pāli voices: Microsoft M/F (online), phone Kannada (offline,
+  `android-kn`). Translation: Auto (by language) / phone default / any phone voice.
+  PROCESS_TEXT (select text → menu) + SEND (Share) → autoplay. Save: CreateDocument; MP3 if
+  Microsoft Pāli only, else M4A. Signing: committed `app/testing.keystore` (pw readpali) unless
+  secrets ANDROID_KEYSTORE_BASE64/_PASSWORD, ANDROID_KEY_ALIAS/_PASSWORD. CI
+  `build_android.yml` builds APK "Read Pali Aloud v<ver>.apk", emulator test
+  `.github/scripts/android_test.sh`. Android SDK/Maven blocked in sandbox: compile only in CI.
+  Open questions to owner: see chat 2026-11-03 (distribution, devices, background playback,
+  Piper offline, iOS).
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
