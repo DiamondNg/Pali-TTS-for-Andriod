@@ -33,6 +33,11 @@ def selftest(out_path):
             secs = pali_tts.join_wavs([os.path.join(work, "a.wav")] * 2,
                                       os.path.join(work, "j.wav"))
             lines.append("voice %r: joined %.2f s" % (vid or "default", secs))
+        pali_tts.wav_to_mp3(os.path.join(work, "j.wav"), os.path.join(work, "j.mp3"))
+        lines.append("mp3: %d bytes" % os.path.getsize(os.path.join(work, "j.mp3")))
+        pali_tts.to_wav(os.path.join(work, "j.mp3"), os.path.join(work, "back.wav"))
+        lines.append("auto voices: %r" % {lang: pali_tts.pick_voice(voices, lang)
+                                          for lang in ["en", "zh", "ja", "ms", "es"]})
         lines.append("SELFTEST OK")
     except Exception:
         lines.append(traceback.format_exc())

@@ -87,8 +87,8 @@ cat > "$C/Info.plist" << PLIST
     <key>CFBundleExecutable</key><string>ReadPaliAloud</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>2.1</string>
-    <key>CFBundleVersion</key><string>2.1</string>
+    <key>CFBundleShortVersionString</key><string>2.4</string>
+    <key>CFBundleVersion</key><string>2.4</string>
     <key>LSMinimumSystemVersion</key><string>10.15</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>

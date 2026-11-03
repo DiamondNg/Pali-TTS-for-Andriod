@@ -127,8 +127,8 @@ jobs:
           # Translation voice + joining segments (offline, no Microsoft needed)
           cd "$RUNNER_TEMP"
           say -o en.aiff "Thus have I heard."
-          "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav"))'
-          afconvert -f m4af -d aac j.wav j.m4a && afinfo j.m4a | grep -i duration
+          "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav")); p.wav_to_mp3("j.wav", "j.mp3"); v = p.system_voices(); print("auto voices:", {l: p.pick_voice(v, l) for l in ["zh", "ja", "ms", "es", "vi", "th"]})'
+          afinfo j.mp3 | grep -i -E "duration|format"
           defaults read pbs NSServicesStatus | tee "$RUNNER_TEMP/pbs.txt" || true
           grep -q '"@^o"' "$RUNNER_TEMP/pbs.txt" && echo "OK: shortcut Control-Command-O"
 

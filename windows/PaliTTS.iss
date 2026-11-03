@@ -1,7 +1,7 @@
 ﻿; Inno Setup script: builds PaliTTS-Setup.exe from PyInstaller's dist\ReadPaliAloud folder.
 ; Built by .github/workflows/build_windows.yml. Saved as UTF-8 with BOM (for "ā").
 #ifndef AppVersion
-  #define AppVersion "2.2"
+  #define AppVersion "2.4"
 #endif
 
 [Setup]

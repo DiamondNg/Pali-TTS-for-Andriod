@@ -25,8 +25,8 @@ HOW TO USE
   The window:
        - Speed slider 0.33x – 1.67x
        - Pāli voice: Male or Female (Microsoft, needs internet)
-       - "Save audio to Downloads": MP3 for Pāli only, WAV when a translation
-         is included; the speed is added to the file name
+       - "Save audio to Downloads": always MP3; the speed is added
+         to the file name
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause
          (press Esc first if you are typing in the text box)
        - Dark mode checkbox (top right)
@@ -35,6 +35,10 @@ HOW TO USE
          (offline); choose it under "Translation voice" (all installed
          voices, by language). More voices: Settings → Time & language →
          Speech → Add voices. Both reads Pāli and translation in order.
+         "Auto (by language)" (default) picks a voice for each line from
+         its language (Chinese, Japanese, Thai, Malay, Spanish, French,
+         Vietnamese, Russian...) if such a voice is installed; English and
+         languages without a voice use the system voice.
        - Settings are remembered for next time.
 
 UNINSTALL

@@ -59,6 +59,7 @@ ENGLISH_WPM = 175  # macOS `say` words per minute at 1x (all languages)
 # "en" = translation: any language that is not Pāli, read by the computer's own voice
 MODES = [("Pāli", "pi"), ("Translation", "en"), ("Both", "both")]
 SYSTEM_VOICE = "System default"
+AUTO_VOICE = "Auto (by language)"  # a voice per line, chosen by its language
 
 PLAY_TEXT   = "\u25B6  Play"
 RESUME_TEXT = "\u25B6  Resume"
@@ -121,8 +122,60 @@ def line_language(line):
         return "pi"
     return None
 
+# Which language a translation line is in, for the "Auto" voice
+SCRIPTS = [  # (first, last code point, language)
+    (0x3040, 0x30FF, "ja"),  # Hiragana/Katakana (checked before Han)
+    (0xAC00, 0xD7AF, "ko"), (0x1100, 0x11FF, "ko"),
+    (0x4E00, 0x9FFF, "zh"), (0x3400, 0x4DBF, "zh"),
+    (0x0E00, 0x0E7F, "th"), (0x0E80, 0x0EFF, "lo"), (0x1780, 0x17FF, "km"),
+    (0x1000, 0x109F, "my"), (0x0D80, 0x0DFF, "si"), (0x0900, 0x097F, "hi"),
+    (0x0980, 0x09FF, "bn"), (0x0B80, 0x0BFF, "ta"), (0x0C00, 0x0C7F, "te"),
+    (0x0C80, 0x0CFF, "kn"), (0x0D00, 0x0D7F, "ml"), (0x0A80, 0x0AFF, "gu"),
+    (0x0A00, 0x0A7F, "pa"), (0x0600, 0x06FF, "ar"), (0x0590, 0x05FF, "he"),
+    (0x0370, 0x03FF, "el"), (0x0400, 0x04FF, "ru"), (0x10A0, 0x10FF, "ka"),
+]
+LATIN_MARKERS = {  # common short words of languages written in Latin letters
+    "ms": "yang dan ini itu dengan untuk tidak ada saya dia mereka akan dari kepada pada "
+          "oleh telah sudah atau juga kami kita adalah apa bagaimana",
+    "es": "el la los las que y de del en un una por con para es no se lo su al como más",
+    "fr": "le la les des est et que une un dans pour pas qui sur au du ce il elle je",
+    "de": "der die das und ist nicht ich ein eine zu mit von den dem sich auch es",
+    "it": "il che di è non una per con del della sono gli le lo un si come",
+    "pt": "o que não uma os as com para do da em um é se ao dos das mas",
+    "nl": "de het een en van is dat niet ik zijn met voor op te",
+    "tl": "ang ng mga sa na at ay si ni ito",
+}
+LATIN_MARKERS = {k: set(v.split()) for k, v in LATIN_MARKERS.items()}
+VIETNAMESE = re.compile(r"[ăâđêôơưĂÂĐÊÔƠƯẠ-ỹ]")
+
+def guess_language(line):
+    """Language code ("en", "zh", "ms", ...) of a non-Pāli line."""
+    counts = {}
+    for ch in line:
+        cp = ord(ch)
+        for lo, hi, code in SCRIPTS:
+            if lo <= cp <= hi:
+                counts[code] = counts.get(code, 0) + 1
+                break
+    if counts:
+        if "ja" in counts:
+            return "ja"  # Japanese mixes kana with Chinese characters
+        if "ru" in counts and re.search(r"[іїєґІЇЄҐ]", line):
+            return "uk"
+        return max(counts, key=counts.get)
+    if VIETNAMESE.search(line):
+        return "vi"
+    words = re.findall(r"[^\W\d_]+", line.lower())
+    best, score = "en", sum(1 for w in words if w in ENGLISH_MARKERS)
+    for code, markers in LATIN_MARKERS.items():
+        n = sum(1 for w in words if w in markers)
+        if n > score:
+            best, score = code, n
+    return best
+
 def split_segments(text):
-    """[(lang, text)] in reading order; lang is "pi" or "en" (translation)."""
+    """[(lang, text)] in reading order; lang is "pi" (Pāli) or the language code
+    of a translation line ("en", "zh", "ms", ...)."""
     segs, pending = [], []
     for ln in text.splitlines():
         if not ln.strip() or is_section_marker(ln):
@@ -133,6 +186,8 @@ def split_segments(text):
                 pending.append(ln)
                 continue
             lang = segs[-1][0]
+        elif lang == "en":
+            lang = guess_language(ln)
         if pending:
             ln = " ".join(pending + [ln])
             pending = []
@@ -337,6 +392,25 @@ def _windows_voices():
         data = [data]
     return [(d["label"], d["id"]) for d in data if d.get("id")]
 
+# Preferred region when a language has voices for several countries
+PREFERRED_REGION = {"en": "en-US", "zh": "zh-CN", "pt": "pt-BR", "es": "es-ES",
+                    "fr": "fr-FR", "de": "de-DE", "ar": "ar-SA", "ms": "ms-MY"}
+SIMILAR_LANGUAGE = {"ms": ["id"], "id": ["ms"], "uk": ["ru"]}
+
+def pick_voice(voices, lang):
+    """Voice id for language code `lang` from [(label, id)] ("" = system default).
+    English uses the system voice (on a Mac usually the best English voice)."""
+    if lang == "en":
+        return ""
+    for code in [lang] + SIMILAR_LANGUAGE.get(lang, []):
+        match = [(label, vid) for label, vid in voices
+                 if label.lower().split("-")[0].split(" ")[0] == code]
+        if match:
+            pref = PREFERRED_REGION.get(code, "").lower()
+            match.sort(key=lambda v: not v[0].lower().startswith(pref) if pref else 0)
+            return match[0][1]
+    return ""
+
 def speak_many(jobs, voice_id, mult, work):
     """jobs: [(text, path_without_extension)] → [audio file paths], spoken
     by the computer's own voice (voice_id None/"" = system default)."""
@@ -375,9 +449,10 @@ def to_wav(src, dst):
         w.setframerate(SAMPLE_RATE)
         w.writeframes(snd.samples.tobytes())
 
-def build_joined(parts, rate, voice, other_voice, mult, status=lambda msg: None):
-    """parts: [("kn", kannada_text) or ("en", translation_text)] → (wav path, seconds).
-    Kannada parts use Microsoft's voice, translation parts the computer's own voice."""
+def build_joined(parts, rate, voice, voice_for, mult, status=lambda msg: None):
+    """parts: [("kn", kannada_text) or (language code, translation_text)] → (wav, seconds).
+    Kannada parts use Microsoft's voice; translation parts the computer's own voice
+    voice_for(language code) (a voice id, "" = system default)."""
     work = tempfile.mkdtemp(prefix="palitts")
     try:
         bases = [os.path.join(work, "%03d" % i) for i in range(len(parts))]
@@ -391,9 +466,13 @@ def build_joined(parts, rate, voice, other_voice, mult, status=lambda msg: None)
             generate_audio_many([(t, srcs[i]) for i, t in kn], rate, voice)
         if other:
             status("Generating translation audio...")
-            paths = speak_many([(t, bases[i]) for i, t in other], other_voice, mult, work)
-            for (i, _), path in zip(other, paths):
-                srcs[i] = path
+            groups = {}  # one call per voice (Windows: one PowerShell per voice)
+            for i, t in other:
+                groups.setdefault(voice_for(parts[i][0]), []).append((i, t))
+            for vid, items in groups.items():
+                paths = speak_many([(t, bases[i]) for i, t in items], vid, mult, work)
+                for (i, _), path in zip(items, paths):
+                    srcs[i] = path
         wavs = []
         for src, base in zip(srcs, bases):
             to_wav(src, base + ".wav")
@@ -403,6 +482,23 @@ def build_joined(parts, rate, voice, other_voice, mult, status=lambda msg: None)
         return out, join_wavs(wavs, out)
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+def wav_to_mp3(src, dst, kbps=64):
+    """Mono 16-bit WAV → MP3 with the bundled LAME encoder (lameenc)."""
+    import lameenc
+    with wave.open(src, "rb") as w:
+        enc = lameenc.Encoder()
+        enc.set_bit_rate(kbps)
+        enc.set_in_sample_rate(w.getframerate())
+        enc.set_channels(w.getnchannels())
+        enc.set_quality(2)
+        with open(dst, "wb") as out:
+            while True:
+                frames = w.readframes(SAMPLE_RATE * 10)
+                if not frames:
+                    break
+                out.write(enc.encode(frames))
+            out.write(enc.flush())
 
 def join_wavs(parts, dst, gap=0.4):
     """Concatenate mono 16-bit WAVs with a short silence between them."""
@@ -565,11 +661,14 @@ class PaliTTSWindow:
             mode = "pi"
         # Translation voice: label shown → voice id. The full list loads in the
         # background (Windows needs a second); until then the saved one is offered.
-        self.voice_ids = {SYSTEM_VOICE: ""}
+        self.voice_ids = {AUTO_VOICE: "auto", SYSTEM_VOICE: ""}
+        self.voices = []          # [(label, id)] of the installed voices
         en_id = settings.get("en_voice")
         en_label = settings.get("en_voice_label") or en_id  # v2.1 saved only a Mac name
         if not (isinstance(en_id, str) and isinstance(en_label, str)) or \
-                not en_id or en_id == SYSTEM_VOICE:
+                en_id in ("auto", SYSTEM_VOICE) or "en_voice" not in settings:
+            en_label = AUTO_VOICE
+        elif not en_id:
             en_label = SYSTEM_VOICE
         else:
             self.voice_ids[en_label] = en_id
@@ -768,7 +867,8 @@ class PaliTTSWindow:
         self._after(self._voices_loaded, voices)
 
     def _voices_loaded(self, voices):
-        ids = {SYSTEM_VOICE: ""}
+        self.voices = voices
+        ids = {AUTO_VOICE: "auto", SYSTEM_VOICE: ""}
         ids.update(voices)
         current = self.en_voice_var.get()
         if current not in ids:
@@ -782,9 +882,8 @@ class PaliTTSWindow:
     def _on_mode(self):
         mode = self.mode_var.get()
         self.en_combo.config(state="disabled" if mode == "pi" else "readonly")
-        both = "M4A (Apple audio)" if IS_MAC else "WAV"
-        self.save_note.config(text="Saved as MP3 at the chosen speed and voice." if mode == "pi"
-                              else "Saved as %s at the chosen speed and voices." % both)
+        self.save_note.config(text="Saved as MP3 at the chosen speed and voice%s."
+                              % ("" if mode == "pi" else "s"))
 
     def _current_key(self):
         """Settings key (mode, segments, speed, voice, translation voice id), or None."""
@@ -802,7 +901,7 @@ class PaliTTSWindow:
                 return None
             segs = tuple(split_segments(text_content))
             if mode == "en":
-                segs = tuple(sg for sg in segs if sg[0] == "en")
+                segs = tuple(sg for sg in segs if sg[0] != "pi")
         if not segs:
             self.status_var.set("No translation (non-Pāli) text detected." if mode == "en"
                                 else "No Pāli text detected.")
@@ -887,9 +986,12 @@ class PaliTTSWindow:
         # Translation / Both: make each part, convert to WAV, join into one file
         try:
             self._set_status("Transliterating...")
-            parts = [("kn", to_kannada(text)) if lang == "pi" else ("en", text)
+            parts = [("kn", to_kannada(text)) if lang == "pi" else (lang, text)
                      for lang, text in segs]
-            out, secs = build_joined(parts, rate, voice, en_voice, mult, self._set_status)
+            voices = self.voices
+            voice_for = (lambda lang: pick_voice(voices, lang)) if en_voice == "auto" \
+                else (lambda lang: en_voice)
+            out, secs = build_joined(parts, rate, voice, voice_for, mult, self._set_status)
         except Exception:
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
@@ -989,10 +1091,8 @@ class PaliTTSWindow:
         base = "_".join(words)
         base = re.sub(r'[/:\\*?"<>|,;.\(\)\'“”‘’]', "", base).strip("_") or "pali_audio"
         base += "_" + SPEEDS[speed][0]
-        if mode == "pi":
-            ext = ".mp3"
-        else:
-            ext = ".m4a" if IS_MAC else ".wav"
+        ext = ".mp3"
+        if mode != "pi":
             base += "_" + ("translation" if mode == "en" else "pali_translation")
         dl = os.path.join(os.path.expanduser("~"), "Downloads")
         name = base + ext
@@ -1001,12 +1101,11 @@ class PaliTTSWindow:
             name = base + "_" + datetime.now().strftime("%H%M%S") + ext
             path = os.path.join(dl, name)
         try:
-            if ext in (".mp3", ".wav"):
+            if mode == "pi":  # already MP3 from Microsoft
                 shutil.copy(self.audio_path, path)
             else:
-                subprocess.run(["afconvert", "-f", "m4af", "-d", "aac", self.audio_path, path],
-                               check=True, capture_output=True, timeout=600)
-        except (OSError, subprocess.SubprocessError):
+                wav_to_mp3(self.audio_path, path)
+        except Exception:  # disk full, no permission, encoder missing...
             return "Could not save audio to Downloads."
         self.saved_key = key
         return "Saved: " + name

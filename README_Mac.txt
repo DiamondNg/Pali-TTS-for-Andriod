@@ -39,9 +39,13 @@ HOW TO USE
          System Settings → Accessibility → Spoken Content → System voice
          → Manage Voices). Both reads Pāli and translation lines in order,
          e.g. a SuttaCentral page with Pāli and English selected.
+         "Auto (by language)" (default) picks a voice for each line from
+         its language (Chinese, Japanese, Thai, Malay, Spanish, French,
+         Vietnamese, Russian...) if such a voice is installed; English and
+         languages without a voice use the system voice.
        - Pāli voice: Male or Female (Microsoft, needs internet)
-       - "Save audio to Downloads": MP3 for Pāli only, M4A when
-         a translation is included; the speed is added to the file name
+       - "Save audio to Downloads": always MP3; the speed is added
+         to the file name
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause
          (press Esc first if you are typing in the text box)
        - Dark mode checkbox (top right); by default it follows the Mac

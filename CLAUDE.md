@@ -21,6 +21,11 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   Malay/Spanish/Italian, and Pāli without diacritics); 1–2-word lines join neighbours.
   Limit: short all-vowel-ending lines in other languages ("Saya suka kopi") → Pāli.
   DPD not needed now; a Pāli word list from DPD could improve detection later.
+- v2.4 (same branch, PR for owner's v2.4 release): all saved audio is MP3 (`wav_to_mp3`, bundled
+  `lameenc`, 64 kbps). Voice option "Auto (by language)" (default, id "auto"): `split_segments`
+  tags translation lines with `guess_language()` (Unicode script ranges; Latin via marker words
+  for ms/es/fr/de/it/pt/nl/tl, Vietnamese letters, else en); `pick_voice()` matches the voice
+  label's language prefix (PREFERRED_REGION, ms↔id); English → system default voice.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
