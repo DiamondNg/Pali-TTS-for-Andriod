@@ -26,25 +26,32 @@ INSTALLATION
 
 HOW TO USE
   • Select text in any app (browser, PDF, Word...) and press
-    Control-Command-P, or right-click → Services → "Read Pali Aloud".
+    Control-Command-O, or right-click → Services → "Read Pali Aloud".
     (Change the shortcut: System Settings → Keyboard → Keyboard
     Shortcuts → Services → Text.)
   • Or open "Read Pāli Aloud" from Launchpad / Applications and paste text.
   The window:
-       - Speed slider 0.33x – 1.67x (1x = the old 0.75x)
-       - Read: Pāli / English / Both. English uses the Mac's own
-         voices (offline); choose one under "English voice".
-         Both reads the Pāli and English lines in their order,
+       - Pāli speed slider 0.33x – 1.67x (1x = the old 0.75x)
+       - Translation speed slider 0.75x – 3x (the Mac voice's own speed)
+       - Read: Pāli / Translation / Both. Translation = every line that is
+         not Pāli, in any language (English, Chinese, Malay...), read by
+         one of the Mac's own voices (offline); choose it under
+         "Translation voice" (all installed voices, by language; more in
+         System Settings → Accessibility → Spoken Content → System voice
+         → Manage Voices). Both reads Pāli and translation lines in order,
          e.g. a SuttaCentral page with Pāli and English selected.
+         "Auto (by language)" (default) picks a voice for each line from
+         its language (Chinese, Japanese, Thai, Malay, Spanish, French,
+         Vietnamese, Russian...) if such a voice is installed; English and
+         languages without a voice use the system voice.
        - Pāli voice: Male or Female (Microsoft, needs internet)
-       - "Save audio to Downloads": MP3 for Pāli only, M4A when
-         English is included; the speed is added to the file name
+       - "Save audio to Downloads": always MP3; the speed is added
+         to the file name
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause
          (press Esc first if you are typing in the text box)
        - Dark mode checkbox (top right); by default it follows the Mac
-       - "ññ test" (bottom right): plays aññaṃ, paññā, saññā, rañño,
-         kataññū, aññatra in 6 spellings, each after its number. Choose
-         the number that sounds right; it is then used for all text.
+       - ññ (aññaṃ, paññā...) is read with the spelling the teacher chose
+         in the v2.1 test (number 4).
        - Settings are remembered for next time.
 
 UNINSTALL
@@ -54,7 +61,7 @@ UNINSTALL
 
 TROUBLESHOOTING
   • "The app is damaged" — run the installer again.
-  • "No Pali text detected" — the tool filters out English and
+  • "No Pali text detected" — the tool filters out non-Pāli lines and
     section numbers; make sure the selection contains Pali words.
   • "Transliteration failed" — the local converter failed and the
     online aksharamukha API was unreachable; re-run the installer.
