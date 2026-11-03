@@ -10,9 +10,14 @@ fail() { echo "FAIL: $*"; exit 1; }
 adb install -r "$APK" || fail "install"
 adb logcat -c
 
-ui_dump() {  # visible texts of the screen → shots/$1.xml
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb pull /sdcard/ui.xml "shots/$1.xml" >/dev/null 2>&1
+ui_dump() {  # visible texts of the screen → shots/$1.xml (retries: needs a still screen)
+  for _ in 1 2 3 4 5; do
+    adb shell rm -f /sdcard/ui.xml
+    adb shell uiautomator dump /sdcard/ui.xml 2>&1 | tail -1
+    adb pull /sdcard/ui.xml "shots/$1.xml" >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  : > "shots/$1.xml"
 }
 
 wait_log() {  # wait up to $2 s for $1 in the app's log
@@ -33,12 +38,9 @@ grep -q "ನಮೋ ತಸ್ಸ ಭಗವತೋ" shots/selftest.log || fail "Kan
 grep -q '"nya": true' shots/selftest.log || fail "ññ spelling"
 grep -q "SELFTEST piper" shots/selftest.log || fail "offline Piper voice"
 grep -q '"en", "Homage to the Blessed One' shots/selftest.log || fail "translation line not detected"
-sleep 2
-adb exec-out screencap -p > shots/1_start.png
-ui_dump 1_start
-grep -q "Pāli speed:  1x" shots/1_start.xml || fail "speed label (Python speeds)"
-echo "OK: main window"
 sleep 3
+adb exec-out screencap -p > shots/1_start.png
+echo "== 1b. Background player: notification, keeps playing outside the app, media keys"
 adb shell dumpsys notification --noredact | grep -A3 "pkg=$PKG" | head -20 | tee shots/notification.txt
 grep -q "pkg=$PKG" shots/notification.txt || fail "no player notification while playing"
 adb shell dumpsys media_session | grep -A6 "ReadPaliAloud" | head -20
@@ -49,7 +51,15 @@ sleep 2
 adb exec-out screencap -p > shots/1b_notification.png
 adb shell cmd statusbar collapse
 adb shell dumpsys activity services "$PKG" | grep -q "PlaybackService" || fail "player stopped when the app left the screen"
-echo "OK: background player + notification"
+adb shell input keyevent KEYCODE_MEDIA_STOP   # like the Stop button on the lock screen / headphones
+sleep 3
+adb shell dumpsys activity services "$PKG" | grep -q "PlaybackService" && fail "media Stop key did not stop the player"
+echo "OK: background player + notification + Stop key"
+adb shell am start -n "$PKG/.MainActivity"
+sleep 3
+ui_dump 1_start
+grep -q "Pāli speed:  1x" shots/1_start.xml || { grep -o 'text="[^"]*"' shots/1_start.xml | head -30; fail "speed label (Python speeds)"; }
+echo "OK: main window"
 
 echo "== 2. Text selected in another app → Read Pāli Aloud (PROCESS_TEXT)"
 adb logcat -c
