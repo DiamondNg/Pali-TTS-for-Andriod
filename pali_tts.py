@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Āyasmā Paññādhammika
 #
 # This program is free software: you can redistribute it and/or modify it under the
-# terms of the GNU General Public License as published by the Free Software Foundation,
+# terms of the GNU Affero General Public License as published by the Free Software Foundation,
 # either version 3 of the License, or (at your option) any later version.
 # It is distributed WITHOUT ANY WARRANTY; see the file LICENSE for details.
 import sys
@@ -1691,14 +1691,14 @@ def help_text(tray=False):
         "• Online voices need speech.platform.bing.com.")
     S.append(
         "# Credits and licence\n"
-        "• **Made by Āyasmā Paññādhammika.** Free software under the GNU General Public "
-        "License 3.0 or later; source code: github.com/DiamondNg/Pali-TTS-for-Andriod.\n"
+        "• **Made by Āyasmā Paññādhammika.** Free software under the GNU Affero General "
+        "Public License 3.0 or later (AGPL); source code: github.com/DiamondNg/Pali-TTS-for-Andriod.\n"
         "• **Offline Piper voice:** kn_IN-syspin_male-medium by micahchoo "
         "(huggingface.co/micahchoo/piper-kn), trained on the SYSPIN Kannada male "
         "speaker. Licence: Creative Commons Attribution 4.0 "
         "(creativecommons.org/licenses/by/4.0). Used unchanged.\n"
-        "• Piper speech engine (github.com/OHF-voice/piper1-gpl) and eSpeak NG: "
-        "GNU GPL 3.0.\n"
+        "• Piper speech engine (github.com/OHF-voice/piper1-gpl) and eSpeak NG, which "
+        "Piper uses to turn Kannada letters into speech sounds: GNU GPL 3.0.\n"
         "• Pāli → Kannada script: Aksharamukha (GNU AGPL 3.0). Online voices: Microsoft, "
         "via edge-tts (LGPL 3.0).")
     return ("\n\n".join(S) + "\n\nRead Pāli Aloud " + APP_VERSION +

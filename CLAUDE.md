@@ -63,7 +63,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   → `voices/`, gitignored; GitHub web upload limit 25 MB, model ~60 MB) and bundled (Mac
   Resources/voices, Win _internal/voices). Mac: onnxruntime 1.23.2 --no-deps, macOS 13+ for Piper;
   `slim_piper.py` drops other eSpeak dicts/Hebrew/Arabic models. Help window: markup (#, •, –, **).
-  Licences: app GPL-3.0-or-later (owner: Āyasmā Paññādhammika, wants free distribution; told
+  Licences: app AGPL-3.0-or-later (owner chose, = Aksharamukha) (owner: Āyasmā Paññādhammika, wants free distribution; told
   GPL allows selling); Piper voice CC BY 4.0 (credited in Help/README), piper-tts + eSpeak GPL-3,
   Aksharamukha AGPL-3, edge-tts/lameenc LGPL-3.
 - Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.

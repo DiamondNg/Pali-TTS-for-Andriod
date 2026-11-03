@@ -94,7 +94,7 @@ cat > "$C/Info.plist" << PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
-    <key>NSHumanReadableCopyright</key><string>© 2026 Āyasmā Paññādhammika · GNU GPL 3.0 or later</string>
+    <key>NSHumanReadableCopyright</key><string>© 2026 Āyasmā Paññādhammika · GNU AGPL 3.0 or later</string>
     <key>LSMinimumSystemVersion</key><string>10.15</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>
