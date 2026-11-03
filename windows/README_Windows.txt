@@ -4,14 +4,14 @@ Read Pāli Aloud (Pali TTS) — Windows
 REQUIREMENTS
   • Windows 10 or 11, 64-bit
   • Nothing else to install: Python and all libraries are inside the installer
-  • Internet connection for the Microsoft voice
+  • Internet connection for the Microsoft voices (the Piper voice is offline)
 
 NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • aksharamukha-plugin.appspot.com  (HTTPS port 443, fallback only)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Double-click "Read Pāli Aloud v2.5.exe" (the installer).
+  1. Double-click "Read Pāli Aloud v2.6.exe" (the installer).
      The installer is not signed, so Windows may show
      "Windows protected your PC": click "More info" → "Run anyway".
   2. Click through the installer (no administrator password needed;
@@ -41,7 +41,8 @@ HOW TO USE
   The window:
        - Pāli speed slider 0.33x – 1.67x
        - Translation speed slider 0.75x – 3x (the Windows voice's own speed)
-       - Pāli voice: Male or Female (Microsoft, needs internet)
+       - Pāli voice: Male / Female · Microsoft (online, needs internet),
+         or Male · Piper (offline, comes with the app)
        - "Save audio to Downloads": always MP3; the speed is added
          to the file name
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause

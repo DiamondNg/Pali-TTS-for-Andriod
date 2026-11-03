@@ -8,7 +8,7 @@
 AppId={{6E4B2C1A-9D3F-4F7B-8A51-2C7D0E5B9A13}
 AppName=Read Pāli Aloud
 AppVersion={#AppVersion}
-AppPublisher=Pali TTS
+AppPublisher=Āyasmā Paññādhammika
 DefaultDirName={localappdata}\Programs\Read Pali Aloud
 DisableProgramGroupPage=yes
 DisableDirPage=yes
@@ -31,6 +31,7 @@ Name: "desktopicon"; Description: "Put an icon on the desktop"; Flags: unchecked
 Source: "..\dist\ReadPaliAloud\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\assets\AppIcon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README_Windows.txt"; DestDir: "{app}"; DestName: "Read Me.txt"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "License.txt"; Flags: ignoreversion
 
 [InstallDelete]
 ; files of an older version

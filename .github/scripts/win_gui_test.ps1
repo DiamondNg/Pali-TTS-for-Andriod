@@ -2,7 +2,7 @@
 # 1) open the window with text; 2) Close only hides it (tray app keeps running);
 # 3) Ctrl+Shift+Y reads the selection without the clipboard; 4) floating button:
 #    appears after a mouse selection, Esc hides it, a click reads the text;
-# 5) tray menu Exit quits.
+# 5) tray menu Exit quits; 6) the window opens at the remembered size.
 param([string]$App = "$env:LOCALAPPDATA\Programs\Read Pali Aloud\ReadPaliAloud.exe",
       [string]$Out = "shots")
 $ErrorActionPreference = "Stop"
@@ -136,5 +136,26 @@ $tray = [K]::FindWindow("PaliTTS.TrayWindow", [NullString]::Value)
 [K]::PostMessage($tray, 0x0111, [IntPtr]4, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, Exit
 Start-Sleep 4
 if (Get-Process ReadPaliAloud -ErrorAction SilentlyContinue) { "FAIL: Exit did not quit"; $fail = 1 } else { "OK: Exit quit the app" }
+
+# 6) The saved window size is used when the window is opened again
+$cfg = Join-Path $env:APPDATA "PaliTTS\settings.json"
+$set = if (Test-Path $cfg) { Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json } else { [pscustomobject]@{} }
+"saved size after the tests: $($set.size -join 'x')"
+$scr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$tw = [Math]::Min([int]$set.size[0] + 80, $scr.Width - 40)   # app: never bigger than the screen
+$th = [Math]::Min([int]$set.size[1] + 40, $scr.Height - 120)
+$set | Add-Member -Force -NotePropertyName size -NotePropertyValue @($tw, $th)
+[IO.File]::WriteAllText($cfg, ($set | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+Start-Process $App -ArgumentList "--input-file", "`"$in`""
+Start-Sleep 10
+$p = Get-Process ReadPaliAloud | Where-Object MainWindowTitle | Select-Object -First 1
+$r = New-Object "K+RECT"
+if ($p -and [K]::GetWindowRect($p.MainWindowHandle, [ref]$r)) {
+  $w = $r.R - $r.L; $h = $r.B - $r.T
+  "wanted ${tw}x${th}; window with frame: ${w}x${h}"
+  if ($w -ge $tw -and $w -le $tw + 60 -and $h -ge $th -and $h -le $th + 80) { "OK: remembered size used" }
+  else { "FAIL: remembered size not used"; $fail = 1 }
+} else { "FAIL: no window for the size test"; $fail = 1 }
+Shot "remembered-size"
 StopAll
 exit $fail

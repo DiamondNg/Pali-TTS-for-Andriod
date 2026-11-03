@@ -13,7 +13,7 @@ NETWORK DOMAINS TO WHITELIST (if on a filtered network)
   • speech.platform.bing.com         (WSS  port 443)
 
 INSTALLATION
-  1. Open "Read Pāli Aloud v2.5.dmg", then double-click "Install Pali TTS.command"
+  1. Open "Read Pāli Aloud v2.6.dmg", then double-click "Install Pali TTS.command"
      A Terminal window opens and runs the installer automatically.
      If macOS says it "cannot verify" the file (it is not Apple-signed):
      click Done, then System Settings → Privacy & Security → scroll down
@@ -47,7 +47,12 @@ HOW TO USE
          its language (Chinese, Japanese, Thai, Malay, Spanish, French,
          Vietnamese, Russian...) if such a voice is installed; English and
          languages without a voice use the system voice.
-       - Pāli voice: Male or Female (Microsoft, needs internet)
+       - Pāli voice:
+           Male / Female · Microsoft (online, needs internet)
+           Male · Piper (offline, comes with the app; macOS 13 or newer)
+           Female · Soumya, Mac (offline). Get it once: System Settings →
+             Accessibility → Spoken Content → System voice → Manage
+             Voices… → Kannada → tick Soumya.
        - "Save audio to Downloads": always MP3; the speed is added
          to the file name
        - ▶ Play / ⏸ Pause / ▶ Resume, ⏹ Stop; Space bar = play / pause

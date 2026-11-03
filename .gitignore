@@ -24,3 +24,6 @@ bin/
 
 # Python wheels / downloads
 *.whl
+
+# Offline Piper voice (downloaded by CI from Hugging Face, ~60 MB)
+/voices/

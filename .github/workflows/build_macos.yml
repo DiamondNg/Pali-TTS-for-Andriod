@@ -56,6 +56,18 @@ jobs:
               --python-version "$PY_VERSION" --implementation cp \
               -r requirements-macos.txt
           done
+          # Offline Piper voice: onnxruntime 1.23.2 is the last with Intel Mac wheels, and
+          # needs macOS 13+ (the app still starts on older Macs; only Piper is unavailable).
+          # --no-deps: onnxruntime's sympy/coloredlogs are not needed to run a voice.
+          for pair in "arm64 macosx_13_0_arm64" "x86_64 macosx_13_0_x86_64"; do
+            set -- $pair
+            SITE=$(ls -d runtime/"$1"/lib/python3.*/site-packages)
+            "$PIP_PY" -m pip install --quiet --disable-pip-version-check --break-system-packages \
+              --target "$SITE" --upgrade --only-binary=:all: --platform "$2" \
+              --python-version "$PY_VERSION" --implementation cp --no-deps \
+              piper-tts==1.8.0 onnxruntime==1.23.2 numpy flatbuffers protobuf packaging pathvalidate
+            python3 .github/scripts/slim_piper.py "$SITE"
+          done
           # Slim down: no pip, tests, IDLE, caches
           for d in runtime/*; do
             L=$(ls -d "$d"/lib/python3.*)
@@ -83,10 +95,15 @@ jobs:
             tail -5 "min-$arch.txt"
           done
 
+      - name: Download the offline Piper voice (Hugging Face)
+        run: bash .github/scripts/get_piper_model.sh
+
       - name: Test Intel runtime under Rosetta
         run: |
           arch -x86_64 runtime/x86_64/bin/python3 -c 'import platform, edge_tts, tkinter, certifi; tkinter.Tcl(); print(platform.machine(), platform.python_version(), "OK")'
           PYTHONPATH=. arch -x86_64 runtime/x86_64/bin/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("evaṃ me sutaṃ"))'
+          # Piper (offline Pāli voice) on Intel
+          PYTHONPATH=. arch -x86_64 runtime/x86_64/bin/python3 -c 'import sys, wave; sys.argv = ["x"]; import pali_tts as p; p.piper_to_wav(p.to_kannada("Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā"), "intel.wav", 1.0); w = wave.open("intel.wav"); s = w.getnframes() / w.getframerate(); print("Intel Piper %.2f s" % s); assert s > 1'
 
       - name: Build DMG
         run: |
@@ -95,8 +112,11 @@ jobs:
           mkdir -p "$STAGE"
           cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
+          cp LICENSE "$STAGE/License.txt"
           mkdir -p "$STAGE/.assets"
           cp assets/AppIcon.icns "$STAGE/.assets/"
+          mkdir -p "$STAGE/.assets/voices"
+          cp voices/*.onnx voices/*.onnx.json "$STAGE/.assets/voices/"
           chmod +x "$STAGE/Install Pali TTS.command"
           ditto runtime "$STAGE/.runtime"
           hdiutil create -volname "Pali TTS" -srcfolder "$STAGE" \
@@ -116,6 +136,7 @@ jobs:
           APP="/Applications/Read Pāli Aloud.app"
           test -x "$APP/Contents/MacOS/ReadPaliAloud"
           test -f "$APP/Contents/Resources/AppIcon.icns"
+          test -f "$APP/Contents/Resources/voices/kn_IN-syspin_male-medium.onnx.json"
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
           grep -A1 COMMAND_STRING "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
           "$APP/Contents/MacOS/python3" -c 'import sys, edge_tts, tkinter; tkinter.Tcl(); print("runtime OK", sys.prefix)'
@@ -129,6 +150,16 @@ jobs:
           say -o en.aiff "Thus have I heard."
           "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav")); p.wav_to_mp3("j.wav", "j.mp3"); v = p.system_voices(); print("auto voices:", {l: p.pick_voice(v, l) for l in ["zh", "ja", "ms", "es", "vi", "th"]})'
           afinfo j.mp3 | grep -i -E "duration|format"
+          # Offline Pāli voices: Piper (bundled) at 1x and 0.33x, Soumya (if this Mac has it)
+          "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p
+          print("model:", p.piper_model_path()); k = p.to_kannada("Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā sāvatthiyaṃ viharati.")
+          for rate in ["-25%", "-75%"]:
+              out, secs = p.build_joined([("kn", k)], rate, "piper", None, 1.0); print("Piper", rate, "%.2f s" % secs); assert secs > 1.5
+          try:
+              out, secs = p.build_joined([("kn", k)], "-25%", "soumya", None, 1.0); print("Soumya %.2f s" % secs)
+          except p.VoiceError as e:
+              print("Soumya:", e)
+          out, secs = p.build_joined([("kn", k), ("en", "Thus have I heard.")], "-25%", "piper", lambda l: "", 1.0); print("Both with Piper %.2f s" % secs)'
           defaults read pbs NSServicesStatus | tee "$RUNNER_TEMP/pbs.txt" || true
           grep -q '"@$y"' "$RUNNER_TEMP/pbs.txt" && echo "OK: shortcut Shift-Command-Y"
 

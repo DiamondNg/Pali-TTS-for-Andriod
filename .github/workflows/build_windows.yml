@@ -13,6 +13,7 @@ on:
       - 'requirements-windows.txt'
       - 'assets/**'
       - '.github/scripts/win_*'
+      - '.github/scripts/*piper*'
       - '.github/workflows/build_windows.yml'
 
 permissions:
@@ -45,6 +46,10 @@ jobs:
           # UI Automation wrappers (comtypes makes them from Windows' type library)
           python -c "import comtypes.client as c; c.GetModule('UIAutomationCore.dll'); from comtypes.gen import UIAutomationClient; print('UIA wrappers OK')"
 
+      - name: Download the offline Piper voice (Hugging Face)
+        shell: bash
+        run: bash .github/scripts/get_piper_model.sh
+
       - name: Build ReadPaliAloud.exe (PyInstaller)
         run: |
           pyinstaller --noconfirm --clean --windowed --name ReadPaliAloud `
@@ -53,7 +58,10 @@ jobs:
             --hidden-import pali_tts --hidden-import hotkey --hidden-import tray --hidden-import uia `
             --collect-submodules comtypes `
             --collect-all aksharamukha --collect-all edge_tts --collect-all miniaudio --hidden-import _cffi_backend --hidden-import lameenc --collect-data certifi `
+            --collect-all piper --collect-binaries onnxruntime `
+            --add-data "voices/kn_IN-syspin_male-medium.onnx;voices" --add-data "voices/kn_IN-syspin_male-medium.onnx.json;voices" `
             windows/read_pali_aloud.py
+          python .github/scripts/slim_piper.py dist/ReadPaliAloud/_internal
           "{0:N0} MB" -f ((Get-ChildItem dist/ReadPaliAloud -Recurse | Measure-Object Length -Sum).Sum / 1MB)
 
       - name: Self-test the exe

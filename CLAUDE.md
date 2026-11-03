@@ -49,6 +49,23 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   `tray_hint` (balloon once); startup = HKCU Run value "Read Pali Aloud" (installer [Registry],
   checkbox). Help button/window on both OSes: `help_text()` (Mac: Services, no tray),
   `AUTO_LANGUAGES`. `prepare_text` NFC + CR→LF. CI `win_gui_test.ps1` tests all of it.
+- v2.6 on branch `claude/admiring-faraday-g9lutn` (no PR yet): Windows window reopened from the
+  tray at minimum size (never-shown window reports winfo 1x1) → `show()` uses `_remembered_size()`
+  (settings `size`); CI test 6 in `win_gui_test.ps1`. README.md rewritten to current status.
+  Offline Kannada voice test kit `tools/offline_voices/` (Mac, owner evaluates): setup script
+  (curl | bash) → ~/PaliTTS-voice-test (uv 0.12.21, Python 3.12, piper-tts, espeakng-loader,
+  model kn_IN-syspin_male-medium from HF micahchoo/piper-kn), `run.sh` for an Automator Quick
+  Action; compares Mac Soumya (kn_IN), Piper, eSpeak NG kn (ctypes; works on Linux). HF and
+  aksharamukha are blocked from the sandbox: Piper part untested. Windows: no known Kannada voice.
+- v2.6 also (same branch, PR): Pāli voice = Combobox `VOICES` (Microsoft M/F online, "piper"
+  offline, Mac "soumya" = kn_IN `say` voice); `pali_audio()`, `piper_to_wav()` (length_scale /
+  `rate_factor`), `VoiceError` messages. Model downloaded by CI (`.github/scripts/get_piper_model.sh`
+  → `voices/`, gitignored; GitHub web upload limit 25 MB, model ~60 MB) and bundled (Mac
+  Resources/voices, Win _internal/voices). Mac: onnxruntime 1.23.2 --no-deps, macOS 13+ for Piper;
+  `slim_piper.py` drops other eSpeak dicts/Hebrew/Arabic models. Help window: markup (#, •, –, **).
+  Licences: app AGPL-3.0-or-later (owner chose, = Aksharamukha) (owner: Āyasmā Paññādhammika, wants free distribution; told
+  GPL allows selling); Piper voice CC BY 4.0 (credited in Help/README), piper-tts + eSpeak GPL-3,
+  Aksharamukha AGPL-3, edge-tts/lameenc LGPL-3.
 - Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
