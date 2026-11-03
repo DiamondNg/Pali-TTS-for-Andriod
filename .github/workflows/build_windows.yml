@@ -49,7 +49,7 @@ jobs:
             --icon assets/AppIcon.ico --add-data "assets/AppIcon.ico;." `
             --paths . --paths windows `
             --hidden-import pali_tts --hidden-import hotkey `
-            --collect-all aksharamukha --collect-all edge_tts --collect-data certifi `
+            --collect-all aksharamukha --collect-all edge_tts --collect-all miniaudio --collect-data certifi `
             windows/read_pali_aloud.py
           "{0:N0} MB" -f ((Get-ChildItem dist/ReadPaliAloud -Recurse | Measure-Object Length -Sum).Sum / 1MB)
 

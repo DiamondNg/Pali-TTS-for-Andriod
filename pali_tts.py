@@ -43,7 +43,7 @@ ENGLISH_MARKERS = {
 NON_PALI_LETTERS = re.compile(r"[fqwxz]")
 PALI_DIACRITICS = re.compile(r"[āīūṃṁṅñṭḍṇḷĀĪŪṂṀṄÑṬḌṆḶ]")
 
-# (label, edge-tts rate, multiplier for the English voice)
+# (label, edge-tts rate, multiplier for the translation voice)
 # The teacher's old 0.75x is the new 1x; every old step was scaled by 4/3
 # (old 1x -> 1.33x, old 1.25x -> 1.67x); old 1.5x and 1.75x were dropped.
 SPEEDS = [
@@ -54,9 +54,10 @@ SPEEDS = [
     ("1.67x", "+25%", 5 / 3),
 ]
 DEFAULT_SPEED = 2  # 1x
-ENGLISH_WPM = 175  # macOS `say` words per minute at 1x
+ENGLISH_WPM = 175  # macOS `say` words per minute at 1x (all languages)
 
-MODES = [("Pāli", "pi"), ("English", "en"), ("Both", "both")]
+# "en" = translation: any language that is not Pāli, read by the computer's own voice
+MODES = [("Pāli", "pi"), ("Translation", "en"), ("Both", "both")]
 SYSTEM_VOICE = "System default"
 
 PLAY_TEXT   = "\u25B6  Play"
@@ -92,17 +93,55 @@ def is_english_line(line):
         return False
     return matches >= 2 or (len(words) >= 3 and matches / len(words) > 0.3)
 
+# Every letter of romanised (IAST) Pāli; a word with any other letter is not Pāli
+PALI_WORD = re.compile(r"[aāiīuūeokgṅcjñṭḍṇtdnpbmyrlvshḷṃṁ]+")
+# Pāli words end in a vowel or ṃ; most Malay, Spanish, English... lines have
+# words ending in other consonants ("dengar", "ocasión", "heard")
+CLOSED_WORD = re.compile(r".*[^aāiīuūeoṃṁ]$")
+
+def line_language(line):
+    """"pi" (Pāli), "en" (translation: any other language), or None (too short to tell).
+
+    Other scripts (Chinese, Thai, ...) and English count as translation. Latin text
+    is Pāli when its words use only Pāli letters and (nearly) all end in a vowel
+    or ṃ — this also catches Pāli typed without diacritics ("Namo tassa bhagavato")."""
+    if is_non_latin_line(line):
+        return "en"
+    words = re.findall(r"[^\W\d_]+", line.lower())
+    if not words:
+        return None
+    if is_english_line(line):
+        return "en"
+    n = len(words)
+    foreign = sum(1 for w in words if not PALI_WORD.fullmatch(w))
+    closed = sum(1 for w in words if CLOSED_WORD.match(w))
+    if foreign / n >= 0.3 or closed / n > 0.2:
+        return "en"
+    if PALI_DIACRITICS.search(line) or n >= 3:
+        return "pi"
+    return None
+
 def split_segments(text):
-    """[(lang, text)] in reading order; lang is "pi" or "en"."""
-    segs = []
+    """[(lang, text)] in reading order; lang is "pi" or "en" (translation)."""
+    segs, pending = [], []
     for ln in text.splitlines():
-        if not ln.strip() or is_section_marker(ln) or is_non_latin_line(ln):
+        if not ln.strip() or is_section_marker(ln):
             continue
-        lang = "en" if is_english_line(ln) else "pi"
+        lang = line_language(ln)
+        if lang is None:  # short line: goes with its neighbours
+            if not segs:
+                pending.append(ln)
+                continue
+            lang = segs[-1][0]
+        if pending:
+            ln = " ".join(pending + [ln])
+            pending = []
         if segs and segs[-1][0] == lang:
             segs[-1] = (lang, segs[-1][1] + " " + ln)
         else:
             segs.append((lang, ln))
+    if pending:
+        segs.append(("pi", " ".join(pending)))
     return [(lang, " ".join(t.split())) for lang, t in segs]
 
 def clean_pali(text):
@@ -110,16 +149,9 @@ def clean_pali(text):
     return re.sub(r"[\"'“”‘’]", "", text)
 
 def filter_pali_lines(text):
-    lines = text.splitlines()
-    kept = [
-        ln for ln in lines
-        if ln.strip()
-        and not is_section_marker(ln)
-        and not is_english_line(ln)
-        and not is_non_latin_line(ln)
-    ]
-    return " ".join(kept) if kept else " ".join(ln for ln in lines if ln.strip())
-
+    kept = [t for lang, t in split_segments(text) if lang == "pi"]
+    # Nothing looks like Pāli (e.g. typed without diacritics): read it all
+    return " ".join(kept) if kept else " ".join(ln for ln in text.splitlines() if ln.strip())
 
 # ── Aksharamukha API ──────────────────────────────────────────────────────────
 # ññ: Aksharamukha writes ಞ್ಞ, which the Kannada voice says like "bb" (aññaṃ →
@@ -185,7 +217,7 @@ def generate_audio_many(jobs, rate, voice):
     asyncio.run(run())
 
 
-# ── English voice (macOS `say`, offline) ──────────────────────────────────────
+# ── Translation voices: the computer's own, any language, offline ─────────────
 # macOS sound-effect voices: not useful for reading suttas
 NOVELTY_VOICES = {
     "Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos",
@@ -193,60 +225,179 @@ NOVELTY_VOICES = {
     "Superstar", "Trinoids", "Whisper", "Wobble", "Zarvox",
 }
 
-def english_voices():
-    """Names of the installed English voices (macOS)."""
-    if not IS_MAC:
-        return []
+def system_voices():
+    """[(label, voice_id)] of all installed voices, sorted by language."""
     try:
-        out = subprocess.run(["say", "-v", "?"], capture_output=True,
-                             text=True, timeout=15).stdout
+        voices = _mac_voices() if IS_MAC else _windows_voices() if IS_WINDOWS else []
     except Exception:
-        return []
-    names = []
+        voices = []
+    return sorted(voices, key=lambda v: v[0].lower())
+
+def _mac_voices():
+    out = subprocess.run(["say", "-v", "?"], capture_output=True,
+                         text=True, timeout=15).stdout
+    voices, seen = [], set()
     for line in out.splitlines():
-        m = re.match(r"^(.+?)\s+([a-z]{2,3})[_-]([A-Za-z0-9]+)\s+#", line)
-        name = m.group(1).strip() if m else ""
-        if m and m.group(2) == "en" and name not in names and name not in NOVELTY_VOICES:
-            names.append(name)
-    return names
+        m = re.match(r"^(.+?)\s+([a-z]{2,3}[_-][A-Za-z0-9]+)\s+#", line)
+        if not m:
+            continue
+        name, lang = m.group(1).strip(), m.group(2).replace("_", "-")
+        if name in seen or name in NOVELTY_VOICES:
+            continue
+        seen.add(name)
+        voices.append(("%s · %s" % (lang, name), name))
+    return voices
 
 def say_to_file(text, out_path, wpm, voice):
     cmd = ["say", "-r", str(wpm), "-o", out_path]
-    if voice and voice != SYSTEM_VOICE:
+    if voice:
         cmd += ["-v", voice]
     subprocess.run(cmd + ["-f", "-"], input=text, text=True, check=True,
                    capture_output=True, timeout=600)
 
+# Windows: PowerShell 5.1 (part of Windows 10/11) reaches both kinds of voices:
+# "OneCore" voices (Settings → Time & language → Speech, language packs) via
+# WinRT, and classic SAPI voices (incl. third-party ones) via System.Speech.
+WIN_SPEECH_PS = r"""
+param([string]$Mode, [string]$JobFile, [string]$OutFile)
+$ErrorActionPreference = 'Stop'
+$utf8 = New-Object System.Text.UTF8Encoding $false
+function Load-WinRT {
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime
+  $null = [Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType = WindowsRuntime]
+  $script:asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
+    $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
+}
+function Await($op, [Type]$type) {
+  $t = $script:asTask.MakeGenericMethod($type).Invoke($null, @($op)); $null = $t.Wait(-1); $t.Result
+}
+if ($Mode -eq 'list') {
+  $list = @()
+  try { Load-WinRT
+    foreach ($v in [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices) {
+      $list += @{ label = "$($v.Language) · $($v.DisplayName)"; id = "winrt:$($v.Id)" } }
+  } catch { }
+  try { Add-Type -AssemblyName System.Speech
+    $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+    foreach ($v in $s.GetInstalledVoices()) { if ($v.Enabled) { $i = $v.VoiceInfo
+      $list += @{ label = "$($i.Culture.Name) · $($i.Name)"; id = "sapi:$($i.Name)" } } }
+    $s.Dispose()
+  } catch { }
+  [IO.File]::WriteAllText($OutFile, (ConvertTo-Json @($list) -Compress), $utf8)
+  exit 0
+}
+$job = [IO.File]::ReadAllText($JobFile, $utf8) | ConvertFrom-Json
+$voice = [string]$job.voice; $mult = [double]$job.mult
+function Speak-Sapi([string]$name) {
+  Add-Type -AssemblyName System.Speech
+  $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+  if ($name) { $s.SelectVoice($name) }
+  $s.Rate = [int][Math]::Max(-10, [Math]::Min(10, [Math]::Round(10 * [Math]::Log($mult) / [Math]::Log(3))))
+  $fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(24000,
+    [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+  foreach ($j in $job.jobs) { $s.SetOutputToWaveFile([string]$j.out, $fmt); $s.Speak([string]$j.text) }
+  $s.SetOutputToNull(); $s.Dispose()
+}
+if ($voice.StartsWith('sapi:')) { Speak-Sapi $voice.Substring(5); exit 0 }
+try { Load-WinRT
+  $s = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
+  if ($voice.StartsWith('winrt:')) {
+    $v = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices | Where-Object { $_.Id -eq $voice.Substring(6) } | Select-Object -First 1
+    if ($v) { $s.Voice = $v } }
+  try { $s.Options.SpeakingRate = [Math]::Max(0.5, $mult) } catch { }
+} catch { Speak-Sapi ''; exit 0 }   # no WinRT voices: classic default voice
+foreach ($j in $job.jobs) {
+  $stream = Await ($s.SynthesizeTextToStreamAsync([string]$j.text)) ([Windows.Media.SpeechSynthesis.SpeechSynthesisStream])
+  $in = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($stream.GetInputStreamAt(0))
+  $fs = [IO.File]::Create([string]$j.out); $in.CopyTo($fs); $fs.Close(); $in.Dispose(); $stream.Dispose()
+}
+"""
 
-# ── Joining segments (macOS: afconvert ships with the system) ─────────────────
+def _run_win_speech(*args, timeout=600):
+    script = os.path.join(tempfile.gettempdir(), "palitts_speech_v1.ps1")
+    with open(script, "w", encoding="utf-8-sig") as f:  # BOM: PowerShell 5.1 reads "·" right
+        f.write(WIN_SPEECH_PS)
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive",
+                        "-ExecutionPolicy", "Bypass", "-File", script] + list(args),
+                       capture_output=True, timeout=timeout, creationflags=CREATE_NO_WINDOW)
+    if r.returncode:
+        raise RuntimeError(r.stderr.decode("utf-8", "replace")[-2000:])
+
+def _windows_voices():
+    fd, out = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    try:
+        _run_win_speech("list", "", out, timeout=60)
+        with open(out, encoding="utf-8-sig") as f:
+            data = json.load(f)
+    finally:
+        _unlink(out)
+    if isinstance(data, dict):
+        data = [data]
+    return [(d["label"], d["id"]) for d in data if d.get("id")]
+
+def speak_many(jobs, voice_id, mult, work):
+    """jobs: [(text, path_without_extension)] → [audio file paths], spoken
+    by the computer's own voice (voice_id None/"" = system default)."""
+    if IS_MAC:
+        paths = []
+        for text, base in jobs:
+            say_to_file(text, base + ".aiff", round(ENGLISH_WPM * mult), voice_id)
+            paths.append(base + ".aiff")
+        return paths
+    if IS_WINDOWS:
+        job = {"voice": voice_id or "", "mult": mult,
+               "jobs": [{"text": t, "out": b + ".src.wav"} for t, b in jobs]}
+        job_file = os.path.join(work, "job.json")
+        with open(job_file, "w", encoding="utf-8") as f:
+            json.dump(job, f)
+        _run_win_speech("speak", job_file, "")
+        return [b + ".src.wav" for _, b in jobs]
+    raise RuntimeError("No system voice on this computer")
+
+
+# ── Joining segments ──────────────────────────────────────────────────────────
 SAMPLE_RATE = 24000  # = edge-tts output
 
 def to_wav(src, dst):
-    subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16@%d" % SAMPLE_RATE,
-                    "-c", "1", src, dst], check=True, capture_output=True, timeout=600)
+    """Any audio file → mono 16-bit WAV at SAMPLE_RATE."""
+    if IS_MAC:  # afconvert ships with macOS
+        subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16@%d" % SAMPLE_RATE,
+                        "-c", "1", src, dst], check=True, capture_output=True, timeout=600)
+        return
+    import miniaudio  # Windows: bundled decoder (MP3/WAV) + resampler
+    snd = miniaudio.decode_file(src, output_format=miniaudio.SampleFormat.SIGNED16,
+                                nchannels=1, sample_rate=SAMPLE_RATE)
+    with wave.open(dst, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(snd.samples.tobytes())
 
-def build_joined(parts, rate, voice, en_voice, wpm, status=lambda msg: None):
-    """parts: [("kn", kannada_text) or ("en", english_text)] → (wav path, seconds).
-    Kannada parts use Microsoft's voice, English parts the Mac's own voice."""
+def build_joined(parts, rate, voice, other_voice, mult, status=lambda msg: None):
+    """parts: [("kn", kannada_text) or ("en", translation_text)] → (wav path, seconds).
+    Kannada parts use Microsoft's voice, translation parts the computer's own voice."""
     work = tempfile.mkdtemp(prefix="palitts")
     try:
-        jobs, files = [], []
-        for i, (lang, text) in enumerate(parts):
-            src = os.path.join(work, "%03d.%s" % (i, "mp3" if lang == "kn" else "aiff"))
-            if lang == "kn":
-                jobs.append((text, src))
-            files.append((lang, text, src))
-        if jobs:
+        bases = [os.path.join(work, "%03d" % i) for i in range(len(parts))]
+        srcs = [None] * len(parts)
+        kn = [(i, t) for i, (lang, t) in enumerate(parts) if lang == "kn"]
+        other = [(i, t) for i, (lang, t) in enumerate(parts) if lang != "kn"]
+        if kn:
             status("Generating Pāli audio...")
-            generate_audio_many(jobs, rate, voice)
-        status("Generating English audio...")
+            for i, _ in kn:
+                srcs[i] = bases[i] + ".mp3"
+            generate_audio_many([(t, srcs[i]) for i, t in kn], rate, voice)
+        if other:
+            status("Generating translation audio...")
+            paths = speak_many([(t, bases[i]) for i, t in other], other_voice, mult, work)
+            for (i, _), path in zip(other, paths):
+                srcs[i] = path
         wavs = []
-        for lang, text, src in files:
-            if lang == "en":
-                say_to_file(text, src, wpm, en_voice)
-            wav = src.rsplit(".", 1)[0] + ".wav"
-            to_wav(src, wav)
-            wavs.append(wav)
+        for src, base in zip(srcs, bases):
+            to_wav(src, base + ".wav")
+            wavs.append(base + ".wav")
         tmp_fd, out = tempfile.mkstemp(suffix=".wav")
         os.close(tmp_fd)
         return out, join_wavs(wavs, out)
@@ -412,10 +563,16 @@ class PaliTTSWindow:
         mode = settings.get("mode")
         if mode not in [m for _, m in MODES]:
             mode = "pi"
-        self.en_voices = english_voices()
-        en_voice = settings.get("en_voice")
-        if en_voice not in self.en_voices:
-            en_voice = SYSTEM_VOICE
+        # Translation voice: label shown → voice id. The full list loads in the
+        # background (Windows needs a second); until then the saved one is offered.
+        self.voice_ids = {SYSTEM_VOICE: ""}
+        en_id = settings.get("en_voice")
+        en_label = settings.get("en_voice_label") or en_id  # v2.1 saved only a Mac name
+        if not (isinstance(en_id, str) and isinstance(en_label, str)) or \
+                not en_id or en_id == SYSTEM_VOICE:
+            en_label = SYSTEM_VOICE
+        else:
+            self.voice_ids[en_label] = en_id
 
         root.title("Read Pāli Aloud")
         root.resizable(False, False)
@@ -477,12 +634,13 @@ class PaliTTSWindow:
                             value=voice_id).pack(side="left", padx=(0, 12))
         en_frame = ttk.Frame(root)
         en_frame.pack(anchor="w", pady=(8, 0))
-        ttk.Label(en_frame, text="English voice:").pack(side="left", padx=(0, 10))
-        self.en_voice_var = tk.StringVar(value=en_voice)
+        ttk.Label(en_frame, text="Translation voice:").pack(side="left", padx=(0, 10))
+        self.en_voice_var = tk.StringVar(value=en_label)
         self.en_combo = ttk.Combobox(en_frame, textvariable=self.en_voice_var,
-                                     values=[SYSTEM_VOICE] + self.en_voices,
-                                     state="readonly", width=22)
+                                     values=list(self.voice_ids), height=20,
+                                     state="readonly", width=30)
         self.en_combo.pack(side="left")
+        threading.Thread(target=self._load_voices, daemon=True).start()
 
         # ── Save checkbox ─────────────────────────────────────────────────────
         self.save_var = tk.BooleanVar(value=bool(settings.get("save", False)))
@@ -605,14 +763,31 @@ class PaliTTSWindow:
         self.slider_var.set(idx)
         self.speed_label.config(text="Speed:  " + SPEEDS[idx][0])
 
+    def _load_voices(self):
+        voices = system_voices()
+        self._after(self._voices_loaded, voices)
+
+    def _voices_loaded(self, voices):
+        ids = {SYSTEM_VOICE: ""}
+        ids.update(voices)
+        current = self.en_voice_var.get()
+        if current not in ids:
+            # Saved voice was renamed or removed: keep it if its id still exists
+            saved_id = self.voice_ids.get(current)
+            match = [label for label, vid in voices if vid == saved_id]
+            self.en_voice_var.set(match[0] if match else SYSTEM_VOICE)
+        self.voice_ids = ids
+        self.en_combo.config(values=list(ids))
+
     def _on_mode(self):
         mode = self.mode_var.get()
         self.en_combo.config(state="disabled" if mode == "pi" else "readonly")
+        both = "M4A (Apple audio)" if IS_MAC else "WAV"
         self.save_note.config(text="Saved as MP3 at the chosen speed and voice." if mode == "pi"
-                              else "Saved as M4A (Apple audio) at the chosen speed and voices.")
+                              else "Saved as %s at the chosen speed and voices." % both)
 
     def _current_key(self):
-        """Settings key (mode, segments, speed, voice, English voice), or None."""
+        """Settings key (mode, segments, speed, voice, translation voice id), or None."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
             self.status_var.set("Please paste some text first.")
@@ -622,17 +797,17 @@ class PaliTTSWindow:
             text = " ".join(filter_pali_lines(text_content).split())
             segs = (("pi", text),) if text else ()
         else:
-            if not IS_MAC:
-                self.status_var.set("The English voice works on Mac only for now.")
+            if not (IS_MAC or IS_WINDOWS):
+                self.status_var.set("Translation voices work on Mac and Windows only.")
                 return None
             segs = tuple(split_segments(text_content))
             if mode == "en":
                 segs = tuple(sg for sg in segs if sg[0] == "en")
         if not segs:
-            self.status_var.set("No English text detected." if mode == "en"
+            self.status_var.set("No translation (non-Pāli) text detected." if mode == "en"
                                 else "No Pāli text detected.")
             return None
-        en_voice = self.en_voice_var.get() if mode != "pi" else None
+        en_voice = self.voice_ids.get(self.en_voice_var.get(), "") if mode != "pi" else None
         return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice)
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
@@ -709,13 +884,12 @@ class PaliTTSWindow:
             self._after(self._generated, key, tmp_path, audio_duration(tmp_path))
             return
 
-        # English / Both: make each part, convert to WAV, join into one file
+        # Translation / Both: make each part, convert to WAV, join into one file
         try:
             self._set_status("Transliterating...")
             parts = [("kn", to_kannada(text)) if lang == "pi" else ("en", text)
                      for lang, text in segs]
-            out, secs = build_joined(parts, rate, voice, en_voice,
-                                     round(ENGLISH_WPM * mult), self._set_status)
+            out, secs = build_joined(parts, rate, voice, en_voice, mult, self._set_status)
         except Exception:
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
@@ -818,8 +992,8 @@ class PaliTTSWindow:
         if mode == "pi":
             ext = ".mp3"
         else:
-            ext = ".m4a"
-            base += "_" + ("english" if mode == "en" else "pali_english")
+            ext = ".m4a" if IS_MAC else ".wav"
+            base += "_" + ("translation" if mode == "en" else "pali_translation")
         dl = os.path.join(os.path.expanduser("~"), "Downloads")
         name = base + ext
         path = os.path.join(dl, name)
@@ -827,7 +1001,7 @@ class PaliTTSWindow:
             name = base + "_" + datetime.now().strftime("%H%M%S") + ext
             path = os.path.join(dl, name)
         try:
-            if ext == ".mp3":
+            if ext in (".mp3", ".wav"):
                 shutil.copy(self.audio_path, path)
             else:
                 subprocess.run(["afconvert", "-f", "m4af", "-d", "aac", self.audio_path, path],
@@ -843,7 +1017,8 @@ class PaliTTSWindow:
             "voice": self.voice_var.get(),
             "save": bool(self.save_var.get()),
             "mode": self.mode_var.get(),
-            "en_voice": self.en_voice_var.get(),
+            "en_voice": self.voice_ids.get(self.en_voice_var.get(), ""),
+            "en_voice_label": self.en_voice_var.get(),
         }
         if "dark" in self.settings:
             data["dark"] = self.settings["dark"]

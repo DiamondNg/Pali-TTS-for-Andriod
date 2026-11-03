@@ -19,6 +19,20 @@ def selftest(out_path):
         r = tkinter.Tk()
         lines.append("Tk %s" % r.call("info", "patchlevel"))
         r.destroy()
+        voices = pali_tts.system_voices()
+        lines.append("%d voices: %s" % (len(voices), "; ".join(l for l, _ in voices)))
+        lines.append("segments: %r" % pali_tts.split_segments(
+            "Evaṃ me sutaṃ.\nThus have I heard.\n如是我闻。\nDemikianlah yang saya dengar."))
+        # Translation voices → WAV → join (offline; Microsoft's Pāli voice can't be reached in CI)
+        import tempfile, os
+        work = tempfile.mkdtemp()
+        for vid in ["", voices[0][1] if voices else ""]:
+            src = pali_tts.speak_many([("Thus have I heard.", os.path.join(work, "a"))],
+                                      vid, 0.67, work)[0]
+            pali_tts.to_wav(src, os.path.join(work, "a.wav"))
+            secs = pali_tts.join_wavs([os.path.join(work, "a.wav")] * 2,
+                                      os.path.join(work, "j.wav"))
+            lines.append("voice %r: joined %.2f s" % (vid or "default", secs))
         lines.append("SELFTEST OK")
     except Exception:
         lines.append(traceback.format_exc())

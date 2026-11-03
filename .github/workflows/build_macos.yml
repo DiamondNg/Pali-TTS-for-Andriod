@@ -119,15 +119,18 @@ jobs:
           test -f "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
           grep -A1 COMMAND_STRING "$HOME/Library/Services/Read Pali Aloud.workflow/Contents/document.wflow"
           "$APP/Contents/MacOS/python3" -c 'import sys, edge_tts, tkinter; tkinter.Tcl(); print("runtime OK", sys.prefix)'
-          (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("sarīran\"ti aññaṃ"), pali_tts.english_voices()[:5])')
+          (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts; print(pali_tts._to_kannada_local("sarīran\"ti aññaṃ"), pali_tts.system_voices()[:5], len(pali_tts.system_voices()))')
           # ññ spelling chosen by the teacher (number 4 = ನ್ನ್ಯ)
           (cd "$APP/Contents/Resources" && ../MacOS/python3 -c 'import sys; sys.argv = ["x"]; import pali_tts as p; k = p.to_kannada("aññaṃ, paññā, saññā"); print(k); assert "ನ್ನ್ಯ" in k and "ಞ್ಞ" not in k')
-          # English voice + joining segments (offline, no Microsoft needed)
+          print_segments='import sys; sys.argv = ["x"]; import pali_tts as p; print(p.split_segments("Evaṃ me sutaṃ.\nThus have I heard.\n如是我闻。\nDemikianlah yang saya dengar."))'
+          (cd "$APP/Contents/Resources" && ../MacOS/python3 -c "$print_segments")
+          # Translation voice + joining segments (offline, no Microsoft needed)
           cd "$RUNNER_TEMP"
           say -o en.aiff "Thus have I heard."
           "$APP/Contents/MacOS/python3" -c 'import sys; sys.argv=["x"]; sys.path.insert(0, "'"$APP"'/Contents/Resources"); import pali_tts as p; p.to_wav("en.aiff", "a.wav"); p.to_wav("en.aiff", "b.wav"); print("joined secs", p.join_wavs(["a.wav", "b.wav"], "j.wav"))'
           afconvert -f m4af -d aac j.wav j.m4a && afinfo j.m4a | grep -i duration
-          defaults read pbs NSServicesStatus || true
+          defaults read pbs NSServicesStatus | tee "$RUNNER_TEMP/pbs.txt" || true
+          grep -q '"@^o"' "$RUNNER_TEMP/pbs.txt" && echo "OK: shortcut Control-Command-O"
 
       - name: GUI screenshot test
         run: |

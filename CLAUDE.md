@@ -10,8 +10,17 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 ## Status (2026-11-03)
 - v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
   spelling 4, icon without white ring, first Windows installer.
-- Teacher confirmed the Mac DMG installs and works. Mac shortcut Ctrl+Cmd+P: registered by the
-  installer (CI shows `key_equivalent = "@^p"`); real keypress only testable by a person.
+- Teacher confirmed the Mac DMG installs and works. Mac shortcut changed to Ctrl+Cmd+O (owner,
+  2026-11-03; `key_equivalent = "@^o"`, CI greps it); real keypress only testable by a person.
+- v2.3 (same branch): "English" → "Translation" (any language): voice combobox lists ALL local
+  voices (Mac `say -v ?`; Windows OneCore/WinRT + SAPI via embedded PowerShell 5.1 script
+  `WIN_SPEECH_PS`), loaded in a background thread; settings `en_voice` (id) + `en_voice_label`.
+  Windows Both/Translation: `miniaudio` decodes MP3/WAV → 24 kHz mono, saved as WAV.
+- Detection `line_language()`: non-Latin script or English markers → translation; Latin line is
+  Pāli if ≥70% words use only Pāli letters and ≤20% end in a consonant other than ṃ (catches
+  Malay/Spanish/Italian, and Pāli without diacritics); 1–2-word lines join neighbours.
+  Limit: short all-vowel-ending lines in other languages ("Saya suka kopi") → Pāli.
+  DPD not needed now; a Pāli word list from DPD could improve detection later.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
@@ -30,8 +39,8 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   not writable; all-users → sudo): python binary copied to `Contents/MacOS/python3` and runtime
   `lib` to `Contents/lib` so the Dock shows the app name/icon; launcher `Contents/MacOS/ReadPaliAloud`;
   icon `assets/AppIcon.icns` (DMG `.assets/`). Service workflow runs the launcher; shortcut
-  Ctrl+Cmd+P via `defaults write pbs NSServicesStatus` key
-  `(null) - Read Pali Aloud - runWorkflowAsService` = `@^p`. Removes old ~/Library/Scripts/PaliTTS.
+  Ctrl+Cmd+O via `defaults write pbs NSServicesStatus` key
+  `(null) - Read Pali Aloud - runWorkflowAsService` = `@^o`. Removes old ~/Library/Scripts/PaliTTS.
 - `.github/workflows/build_macos.yml`: `uv` 0.12.21 installs python-build-standalone 3.13
   (Tk 9.0.4) for arm64 + x86_64; pip installs `requirements-macos.txt` wheels; slims; reports
   min macOS (arm64 11, Intel 10.15); tests Intel under Rosetta; builds `PaliTTS-macOS.dmg`;
@@ -47,7 +56,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - `hotkey.py`: ctypes `RegisterHotKey` Ctrl+Alt+P (mutex = single instance; message box if taken),
   waits for keys up, sends Ctrl+C, reads clipboard (replaces it), starts exe `--input-file`.
 - Playback: `MciPlayer` (winmm MCI, pause/resume/length) in `pali_tts.py`; Mac `AfplayPlayer`.
-  English/Both still Mac only. Window icon from `AppIcon.ico`, DPI aware.
+  Translation/Both use Windows voices (see v2.3). Window icon from `AppIcon.ico`, DPI aware.
 - `windows/PaliTTS.iss` (UTF-8 BOM): per-user install to %LOCALAPPDATA%\Programs\Read Pali Aloud,
   Start menu "Read Pāli Aloud", Startup shortcut `--hotkey`, kills running exe on (un)install.
 - `.github/workflows/build_windows.yml`: Python 3.13, PyInstaller, selftest, Inno Setup,
