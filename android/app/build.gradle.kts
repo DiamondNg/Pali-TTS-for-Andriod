@@ -88,7 +88,7 @@ tasks.named("preBuild") { dependsOn(copyCore) }
 
 chaquopy {
     defaultConfig {
-        version = "3.12"
+        version = "3.11"  // 3.12+ has no 32-bit ARM build; 3.11 keeps older phones working
         pip {
             // Exact list of packages, all pure Python (see requirements.txt)
             options("--no-deps")

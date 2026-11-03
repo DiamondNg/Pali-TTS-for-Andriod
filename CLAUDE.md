@@ -72,7 +72,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
-  `android/` = Gradle project (AGP 8.7.3, Kotlin 2.0.21, Chaquopy 16.1.0, Python 3.12, minSdk 24,
+  `android/` = Gradle project (AGP 8.7.3, Kotlin 2.0.21, Chaquopy 16.1.0, Python 3.11 (3.12+ lacks armeabi-v7a), minSdk 24,
   targetSdk 35, id `org.sasanarakkha.readpalialoud`). Kotlin UI (`MainActivity.kt`,
   `PhoneVoices.kt` = Android TextToSpeech, `AudioTools.kt` = MediaCodec decode/join/AAC M4A)
   + `app/src/main/python/bridge.py` importing the shared `pali_tts.py` (copied at build;
