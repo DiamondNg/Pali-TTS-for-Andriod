@@ -26,13 +26,14 @@ def selftest(out_path):
         # Translation voices → WAV → join (offline; Microsoft's Pāli voice can't be reached in CI)
         import tempfile, os
         work = tempfile.mkdtemp()
-        for vid in ["", voices[0][1] if voices else ""]:
+        sapi = [v for _, v in voices if v.startswith("sapi:")][:1]
+        for vid, speed in [("", 0.75), ("", 3.0)] + [(v, 3.0) for v in sapi]:
             src = pali_tts.speak_many([("Thus have I heard.", os.path.join(work, "a"))],
-                                      vid, 0.67, work)[0]
+                                      vid, speed, work)[0]
             pali_tts.to_wav(src, os.path.join(work, "a.wav"))
             secs = pali_tts.join_wavs([os.path.join(work, "a.wav")] * 2,
                                       os.path.join(work, "j.wav"))
-            lines.append("voice %r: joined %.2f s" % (vid or "default", secs))
+            lines.append("voice %r at %gx: joined %.2f s" % (vid or "default", speed, secs))
         pali_tts.wav_to_mp3(os.path.join(work, "j.wav"), os.path.join(work, "j.mp3"))
         lines.append("mp3: %d bytes" % os.path.getsize(os.path.join(work, "j.mp3")))
         pali_tts.to_wav(os.path.join(work, "j.mp3"), os.path.join(work, "back.wav"))

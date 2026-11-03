@@ -31,7 +31,8 @@ HOW TO USE
     Shortcuts → Services → Text.)
   • Or open "Read Pāli Aloud" from Launchpad / Applications and paste text.
   The window:
-       - Speed slider 0.33x – 1.67x (1x = the old 0.75x)
+       - Pāli speed slider 0.33x – 1.67x (1x = the old 0.75x)
+       - Translation speed: 0.75x – 3x (the Mac voice's own speed)
        - Read: Pāli / Translation / Both. Translation = every line that is
          not Pāli, in any language (English, Chinese, Malay...), read by
          one of the Mac's own voices (offline); choose it under

@@ -43,7 +43,7 @@ ENGLISH_MARKERS = {
 NON_PALI_LETTERS = re.compile(r"[fqwxz]")
 PALI_DIACRITICS = re.compile(r"[āīūṃṁṅñṭḍṇḷĀĪŪṂṀṄÑṬḌṆḶ]")
 
-# (label, edge-tts rate, multiplier for the translation voice)
+# (label, edge-tts rate, multiplier; the multiplier is no longer used)
 # The teacher's old 0.75x is the new 1x; every old step was scaled by 4/3
 # (old 1x -> 1.33x, old 1.25x -> 1.67x); old 1.5x and 1.75x were dropped.
 SPEEDS = [
@@ -54,6 +54,12 @@ SPEEDS = [
     ("1.67x", "+25%", 5 / 3),
 ]
 DEFAULT_SPEED = 2  # 1x
+# Speed of the computer's own voice for translations (separate from the Pāli speed).
+# 3x is the top: Windows' classic SAPI voices cannot go faster.
+TRANSLATION_SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]
+
+def speed_label(mult):
+    return "%gx" % mult
 ENGLISH_WPM = 175  # macOS `say` words per minute at 1x (all languages)
 
 # "en" = translation: any language that is not Pāli, read by the computer's own voice
@@ -702,7 +708,7 @@ class PaliTTSWindow:
             self.text_box.insert("1.0", initial_text)
 
         # ── Speed ─────────────────────────────────────────────────────────────
-        self.speed_label = ttk.Label(root, text="", font=("", 11, "bold"))
+        self.speed_label = ttk.Label(root, text="", font=("", 11, "bold"))  # Pāli speed
         self.speed_label.pack(anchor="w")
         self.slider_var = tk.DoubleVar(value=speed)
         slider = ttk.Scale(root, from_=0, to=len(SPEEDS) - 1,
@@ -743,6 +749,17 @@ class PaliTTSWindow:
                                      values=list(self.voice_ids), height=20,
                                      state="readonly", width=30)
         self.en_combo.pack(side="left")
+        tr_frame = ttk.Frame(root)
+        tr_frame.pack(anchor="w", pady=(8, 0))
+        ttk.Label(tr_frame, text="Translation speed:").pack(side="left", padx=(0, 10))
+        en_speed = settings.get("en_speed")
+        if en_speed not in TRANSLATION_SPEEDS:
+            en_speed = 1.0
+        self.en_speed_var = tk.StringVar(value=speed_label(en_speed))
+        self.en_speed_combo = ttk.Combobox(
+            tr_frame, textvariable=self.en_speed_var, state="readonly", width=6,
+            values=[speed_label(m) for m in TRANSLATION_SPEEDS])
+        self.en_speed_combo.pack(side="left")
         threading.Thread(target=self._load_voices, daemon=True).start()
 
         # ── Save checkbox ─────────────────────────────────────────────────────
@@ -864,7 +881,7 @@ class PaliTTSWindow:
     def _on_drag(self, _value):
         idx = self._speed_index()
         self.slider_var.set(idx)
-        self.speed_label.config(text="Speed:  " + SPEEDS[idx][0])
+        self.speed_label.config(text="Pāli speed:  " + SPEEDS[idx][0])
 
     def _load_voices(self):
         voices = system_voices()
@@ -886,11 +903,18 @@ class PaliTTSWindow:
     def _on_mode(self):
         mode = self.mode_var.get()
         self.en_combo.config(state="disabled" if mode == "pi" else "readonly")
+        self.en_speed_combo.config(state="disabled" if mode == "pi" else "readonly")
         self.save_note.config(text="Saved as MP3 at the chosen speed and voice%s."
                               % ("" if mode == "pi" else "s"))
 
+    def _en_speed(self):
+        labels = [speed_label(m) for m in TRANSLATION_SPEEDS]
+        label = self.en_speed_var.get()
+        return TRANSLATION_SPEEDS[labels.index(label)] if label in labels else 1.0
+
     def _current_key(self):
-        """Settings key (mode, segments, speed, voice, translation voice id), or None."""
+        """Settings key (mode, segments, Pāli speed index, Pāli voice, translation voice id,
+        translation speed), or None."""
         text_content = self.text_box.get("1.0", "end-1c").strip()
         if not text_content:
             self.status_var.set("Please paste some text first.")
@@ -911,7 +935,8 @@ class PaliTTSWindow:
                                 else "No Pāli text detected.")
             return None
         en_voice = self.voice_ids.get(self.en_voice_var.get(), "") if mode != "pi" else None
-        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice)
+        en_speed = self._en_speed() if mode != "pi" else None
+        return (mode, segs, self._speed_index(), self.voice_var.get(), en_voice, en_speed)
 
     # ── Play / Pause / Stop ───────────────────────────────────────────────────
     def _on_space(self, event):
@@ -966,8 +991,8 @@ class PaliTTSWindow:
         threading.Thread(target=self._generate, args=(key,), daemon=True).start()
 
     def _generate(self, key):
-        mode, segs, speed, voice, en_voice = key
-        _, rate, mult = SPEEDS[speed]
+        mode, segs, speed, voice, en_voice, en_speed = key
+        _, rate, _ = SPEEDS[speed]
         if mode == "pi":  # one MP3 straight from Microsoft
             try:
                 self._set_status("Transliterating...")
@@ -995,7 +1020,7 @@ class PaliTTSWindow:
             voices = self.voices
             voice_for = (lambda lang: pick_voice(voices, lang)) if en_voice == "auto" \
                 else (lambda lang: en_voice)
-            out, secs = build_joined(parts, rate, voice, voice_for, mult, self._set_status)
+            out, secs = build_joined(parts, rate, voice, voice_for, en_speed, self._set_status)
         except Exception:
             self._after(self._generation_failed, "Audio generation failed — check internet.")
             return
@@ -1094,10 +1119,14 @@ class PaliTTSWindow:
         words = segs[0][1].split()[:4]
         base = "_".join(words)
         base = re.sub(r'[/:\\*?"<>|,;.\(\)\'“”‘’]', "", base).strip("_") or "pali_audio"
-        base += "_" + SPEEDS[speed][0]
+        en_speed = speed_label(key[5]) if mode != "pi" else ""
+        if mode == "pi":
+            base += "_" + SPEEDS[speed][0]
+        elif mode == "en":
+            base += "_translation_" + en_speed
+        else:
+            base += "_pali_%s_translation_%s" % (SPEEDS[speed][0], en_speed)
         ext = ".mp3"
-        if mode != "pi":
-            base += "_" + ("translation" if mode == "en" else "pali_translation")
         dl = os.path.join(os.path.expanduser("~"), "Downloads")
         name = base + ext
         path = os.path.join(dl, name)
@@ -1117,6 +1146,7 @@ class PaliTTSWindow:
     def _close(self):
         data = {
             "rate": SPEEDS[self._speed_index()][1],
+            "en_speed": self._en_speed(),
             "voice": self.voice_var.get(),
             "save": bool(self.save_var.get()),
             "mode": self.mode_var.get(),
