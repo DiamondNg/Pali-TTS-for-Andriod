@@ -7,11 +7,11 @@ keep answers short, direct, with a confidence score; brainstorm before big chang
 Owner's rule: whenever starting a new chat would save tokens, say so, and update this file first
 (so the new chat can continue from it).
 
-## Status (2026-11-02)
-- v2 merged (PR #4). v2.1 = ññ test (branch `claude/pensive-archimedes-hdsrmw`, PR #5 pending).
-- PR #1 and #2 merged. macOS is the focus; Windows installer is still broken (copies a missing
-  `pali_tts.py` from `windows/`, calls `pyinstaller` directly). Android/iOS untouched.
-- Teacher confirmed the Mac DMG installs and works.
+## Status (2026-11-03)
+- v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
+  spelling 4, icon without white ring, first Windows installer.
+- Teacher confirmed the Mac DMG installs and works. Mac shortcut Ctrl+Cmd+P: registered by the
+  installer (CI shows `key_equivalent = "@^p"`); real keypress only testable by a person.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider
@@ -41,19 +41,20 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - DMG is unsigned: first open needs System Settings → Privacy & Security → Open Anyway.
 - `assets/AppIcon.png` (1024, made from the owner's image, outline square only).
 
-## Next: Windows installer (plan, not started; owner tests on own Windows PC)
-Current `windows/` is v1-era and broken: needs Python + AutoHotkey preinstalled, bat calls
-`pyinstaller` directly, copies a missing `pali_tts.py`, uses Win+P (clashes with Windows'
-display shortcut), `playsound` cannot pause. Proposed:
-- Build on GitHub Actions `windows-latest`: PyInstaller (one-folder) of the shared `pali_tts.py`
-  (v2) + icon (`assets/AppIcon.png` → .ico), then Inno Setup → `PaliTTS-Setup.exe` (Start menu
-  entry "Read Pāli Aloud" with icon, uninstaller, per-user install, no admin). Upload artifact.
-- Ctrl+Alt+P without AutoHotkey: small resident helper started at login (ctypes
-  `RegisterHotKey`), sends Ctrl+C, reads clipboard, opens the window with the text.
-- Playback with pause/resume/position: Windows MCI (`winmm.mciSendStringW` via ctypes) for MP3.
-- English voice on Windows: SAPI (System.Speech) later; first get Pāli working.
-- Unsigned exe: SmartScreen → "More info" → "Run anyway".
-- CI can smoke-test install + screenshot; audio still needs the owner's PC.
+## Windows (v2.2, first version; owner tests on own Windows PC)
+- `windows/read_pali_aloud.py` = entry of `ReadPaliAloud.exe` (PyInstaller one-folder, windowed):
+  no args → window; `--input-file F`; `--hotkey` → `windows/hotkey.py`; `--selftest OUT` (CI).
+- `hotkey.py`: ctypes `RegisterHotKey` Ctrl+Alt+P (mutex = single instance; message box if taken),
+  waits for keys up, sends Ctrl+C, reads clipboard (replaces it), starts exe `--input-file`.
+- Playback: `MciPlayer` (winmm MCI, pause/resume/length) in `pali_tts.py`; Mac `AfplayPlayer`.
+  English/Both still Mac only. Window icon from `AppIcon.ico`, DPI aware.
+- `windows/PaliTTS.iss` (UTF-8 BOM): per-user install to %LOCALAPPDATA%\Programs\Read Pali Aloud,
+  Start menu "Read Pāli Aloud", Startup shortcut `--hotkey`, kills running exe on (un)install.
+- `.github/workflows/build_windows.yml`: Python 3.13, PyInstaller, selftest, Inno Setup,
+  silent install, `.github/scripts/win_gui_test.ps1` (window text via env `PALI_TTS_DUMP`,
+  Ctrl+Alt+P on a WinForms textbox, screenshots), uninstall; artifact `PaliTTS-Windows`.
+- Unsigned exe: SmartScreen → "More info" → "Run anyway". English voice on Windows (SAPI) later.
+- Icon: `tools/make_icon.py` made PNG/ICNS/ICO from the original (run only on the original).
 
 ## Environment gotchas (cloud sessions)
 - Microsoft TTS (speech.platform.bing.com) is unreachable from the sandbox and returns 403 to
@@ -66,12 +67,8 @@ display shortcut), `playsound` cannot pause. Proposed:
 Done in v2 (needs the teacher to test on a Mac): 2 quotes, 3 speeds, 4 title, 5 .app, 6 Mac
 shortcut, 7 English (selected text only; Mac voices), plus dark mode.
 Still open:
-1. `aññaṁ` sounds like "abbaṁ" (Aksharamukha ಅಞ್ಞಂ; voice mispronounces ಞ್ಞ). v2.1 adds an
-   "ññ test" button: `NYA_VARIANTS` = 1 ಞ್ಞ (old) 2 ನ್ಯ 3 ಞ್ಯ 4 ನ್ನ್ಯ 5 ನ್ಞ 6 ಞ್ಞ್ಯ, read on
-   `NYA_TEST_WORDS` (aññaṃ, paññā, saññā, rañño, kataññū, aññatra), each after "Number N"
-   (Mac `say`); chosen number saved as setting `nya` and applied in `to_kannada`. Waiting for the
-   teacher's pick → then make it the default (and use it on Windows).
-6b. Ctrl+Alt+P on Windows (Windows installer still broken).
+1. ññ: teacher picked 4 (ನ್ನ್ಯ) → fixed in v2.2 (`NYA_SPOKEN`), test button removed.
+6b. Ctrl+Alt+P on Windows: implemented in v2.2, needs testing on a real PC.
 7b. English voice on Windows/Android: use each system's local voices when we get there.
 
 ## Bhikkhunī Pātimokkha side task
