@@ -68,6 +68,17 @@ GitHub Actions builds everything: a push builds the DMG and the Windows installe
 tests); a `v*` tag or a published Release attaches them to the Release. The version is
 `APP_VERSION` in `pali_tts.py`.
 
+## Credits and licences
+
+- **Offline Piper voice** `kn_IN-syspin_male-medium` by micahchoo
+  ([huggingface.co/micahchoo/piper-kn](https://huggingface.co/micahchoo/piper-kn)), trained on the
+  SYSPIN Kannada male speaker — licensed under
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Bundled unchanged.
+- [Piper](https://github.com/OHF-voice/piper1-gpl) speech engine (`piper-tts`) and eSpeak NG:
+  GNU GPL 3.0 or later.
+- [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (transliteration),
+  [edge-tts](https://github.com/rany2/edge-tts) (Microsoft online voices).
+
 ## Network domains (filtered networks)
 
 - `speech.platform.bing.com` (Microsoft voices, WSS 443; not needed for the offline voices)

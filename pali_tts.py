@@ -1682,6 +1682,15 @@ def help_text(tray=False):
         "• Quotation marks are left out of the Pāli; dashes become short pauses.\n"
         "• ññ (aññaṃ, paññā) is spelled so that it sounds right (the teacher's choice).\n"
         "• Online voices need speech.platform.bing.com.")
+    S.append(
+        "# Credits\n"
+        "• **Offline Piper voice:** kn_IN-syspin_male-medium by micahchoo "
+        "(huggingface.co/micahchoo/piper-kn), trained on the SYSPIN Kannada male "
+        "speaker. Licence: Creative Commons Attribution 4.0 "
+        "(creativecommons.org/licenses/by/4.0). Used unchanged.\n"
+        "• Piper speech engine (github.com/OHF-voice/piper1-gpl) and eSpeak NG: "
+        "GNU GPL 3.0.\n"
+        "• Pāli → Kannada script: Aksharamukha. Online voices: Microsoft, via edge-tts.")
     return "\n\n".join(S) + "\n\nRead Pāli Aloud " + APP_VERSION
 
 
