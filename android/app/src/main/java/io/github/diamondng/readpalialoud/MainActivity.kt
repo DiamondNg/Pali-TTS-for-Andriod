@@ -752,6 +752,16 @@ class MainActivity : AppCompatActivity() {
             TRANSLATION VOICE
             • Auto: a voice for each line's language (English, Chinese, Malay, …). Add languages in the phone's text-to-speech settings.
 
+            HOW PĀLI AND TRANSLATION LINES ARE TOLD APART
+            Each line is checked on its own, in these steps:
+            1. A line in another script (Chinese, Thai, Sinhala …) is a translation.
+            2. If more than 1 word in 10 ends in a consonant other than ṃ or m, the line is a translation (Pāli words end in a vowel or ṃ; dhamman’ti counts as ṃ).
+            3. Each word votes. Pāli: it is one of the 145,000 word forms of the Suttas and Vinaya (with or without diacritics), has a letter only Pāli uses (ā, ṃ, ṭ …) or is a title (…sutta, …vagga). Translation: it is a common English, Malay, Spanish … word, has a letter Pāli lacks (f, q, w, x, z, é …) or ends in a consonant. Words of both kinds (para, there) and short ones (na, te, so) don't vote.
+            4. More votes wins. A tie with a translation word is a translation (Venerable Sāriputta).
+            5. No votes: a quote + ti (“bhikkhavo”ti) or kkh, cch, tth … means Pāli; 3 or more words are Pāli.
+            6. A line still too short to tell follows the layout of the text: in Pāli / translation line by line, it takes the language of the line two above (three above for Pāli / English / Chinese); otherwise of the line above.
+            Malay lines with Pāli loan words (Ya, Bhante.) may be read as Pāli. Put Pāli and translation on separate lines.
+
             SAVE AUDIO
             • After playing, "Save audio…" lets you choose where to keep it. It is saved as MP3.
 
