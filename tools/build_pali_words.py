@@ -1,7 +1,7 @@
 """Builds pali_words.py: the most frequent Pāli word forms of the Suttas and Vinaya
 (SuttaCentral bilara-data, Mahāsaṅgīti root text), for language detection.
 
-Usage: python3 tools/build_pali_words.py BILARA_DIR [--count 30000] [--english 3000] [--hold-out an10]
+Usage: python3 tools/build_pali_words.py BILARA_DIR [--count 50000] [--english 3000] [--hold-out an10]
   BILARA_DIR: a checkout of github.com/suttacentral/bilara-data (branch "published"),
   sparse checkout of root/pli/ms and translation/en is enough.
 Words of 1–2 letters (ca, na, so, te, me, no …) are left out on purpose: they are
@@ -32,7 +32,7 @@ def segments(pattern, hold_out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("bilara")
-    ap.add_argument("--count", type=int, default=30000)
+    ap.add_argument("--count", type=int, default=50000)
     ap.add_argument("--hold-out", default="", help="collection left out (for testing)")
     ap.add_argument("--english", type=int, default=3000)
     ap.add_argument("--out", default="pali_words.py")

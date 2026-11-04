@@ -82,17 +82,19 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   Windows: Ctrl+Shift+Y and WM_COPYDATA text now autoplay. Android: always saves MP3 via
   LAME 3.100 (NDK, `android/app/src/main/cpp`, source fetched by
   `.github/scripts/android_get_lame.sh`, sha256 pinned; not compiled locally: sandbox blocked).
-- v2.8 also (owner's spec, 2026-11-04): word-list detection. `pali_words.py` (416 KB, made by
+- v2.8 also (owner's spec, 2026-11-04): word-list detection. `pali_words.py` (700 KB, made by
   `tools/build_pali_words.py BILARA_DIR`, sparse clone of bilara-data `published`): WORDS = top
-  30k Pāli forms (3+ letters) of Sutta+Vinaya (88% of 3+ letter occurrences, 78% of all), NOT_PLAIN
+  50k Pāli forms (3+ letters) of Sutta+Vinaya (owner raised 30k→50k: 92.9% of 3+ letter
+  occurrences, 82.2% of all; unseen AN10 text 91.8%; all 145k forms would give 94.3%), NOT_PLAIN
   (folded forms that are English words), ENGLISH (top 3000 Sujato/Brahmali words never Pāli).
-  `line_language`: each word votes Pāli (list / folded list / Pāli-only letter, not ñ alone =
-  Spanish) or foreign (markers, ENGLISH, f/q/w/x/z, closed ending except final m); words in
-  both lists or `PALI_SHORT` vote nothing; more votes wins; tie with foreign → en; no votes →
-  quote-ti/cluster → pi, 3+ words → pi, else None. Deviations from owner's spec (measured):
-  no "any diacritic → Pāli" (ñ Spanish; names in English), no 10% closed-ending rule (final m).
-  Held-out AN10 test (3000 lines each): new 0% wrong on Pāli, Pāli w/o diacritics (old 33%,
-  spec-literal 14%), English. Load 110 ms once (lazy), 0.3 ms per 11 lines.
+  `line_language`: >10% of words end in a consonant other than ṃ/m → en (owner's rule, m added
+  by owner; `QUOTE_N`: n before a quote = ṃ, "dhamman’ti", else 1.7% of Pāli misread); then each
+  word votes Pāli (list / folded list / Pāli-only letter, not ñ alone = Spanish) or foreign
+  (markers, ENGLISH, f/q/w/x/z, closed ending); words in both lists or `PALI_SHORT` vote nothing;
+  more votes wins; tie with foreign → en; no votes → quote-ti/cluster → pi, 3+ words → pi, else
+  None. No "any diacritic → Pāli" (names in English). Owner: don't worry about Malay (Pāli loans;
+  "Saya suka kopi", "Ya, Bhante." → pi accepted). Held-out AN10 (3000 lines each): 0% wrong on
+  Pāli with/without diacritics, English 0.03% (a bare "Sāriputta" line). Load ≈100 ms (lazy).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

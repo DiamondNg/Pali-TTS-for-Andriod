@@ -65,9 +65,13 @@ def is_section_marker(line):
 
 # Every letter of romanised (IAST) Pāli; a word with any other letter is not Pāli
 PALI_WORD = re.compile(r"[aāiīuūeokgṅcjñṭḍṇtdnpbmyrlvshḷṃṁ]+")
-# Pāli words end in a vowel or ṃ; most Malay, Spanish, English... lines have
-# words ending in other consonants ("dengar", "ocasión", "heard")
-CLOSED_WORD = re.compile(r".*[^aāiīuūeoṃṁ]$")
+# Pāli words end in a vowel or ṃ (m when typed without diacritics: "evam"); most
+# Spanish, English... lines have words ending in other consonants ("ocasión", "heard")
+CLOSED_WORD = re.compile(r".*[^aāiīuūeoṃṁm]$")
+# Share of such words above which a line is a translation (owner's rule)
+MAX_CLOSED = 0.10
+# Pāli ṃ is written n before a quote: dhamman’ti, byākatan’”ti
+QUOTE_N = re.compile(r"n(?=[\"'”’]+[^\W\d_])")
 # Pāli quotation ending "…"ti / "…"nti (iti), and doubled aspirates (bhikkhu, gacchati)
 QUOTE_TI = re.compile(r"[\"'”’]n?ti\b")
 PALI_CLUSTER = re.compile(r"kkh|ggh|cch|jjh|tth|ddh|pph|bbh")
@@ -111,7 +115,7 @@ def word_votes(words):
         if w in pali or PALI_ONLY_LETTERS.search(w) or (len(w) > 2 and w in plain):
             p += 1
         elif w in foreign or NON_PALI_LETTERS.search(w) or not PALI_WORD.fullmatch(w) \
-                or (len(w) > 2 and CLOSED_WORD.match(w) and not w.endswith("m")):
+                or (len(w) > 2 and CLOSED_WORD.match(w)):
             f += 1
     return p, f
 
@@ -120,21 +124,25 @@ def line_language(line):
     """"pi" (Pāli), "en" (translation: any other language), or None (too short to tell).
 
     1. Other scripts (Chinese, Thai, …) → translation.
-    2. Each word votes: Pāli if it is in the Pāli word list (30,000 forms from the
+    2. Each word votes: Pāli if it is in the Pāli word list (50,000 forms from the
        Suttas and Vinaya, also without diacritics) or has a Pāli-only letter (ā, ṃ, ṭ …);
        foreign if it is a common English/Malay/Spanish/… word, has a letter Pāli lacks
        (f, q, w, x, z, é …) or ends in a consonant (Pāli ends in a vowel or ṃ; final m
        is allowed: Pāli typed without diacritics, "evam").
+    2b. More than 10% of the words end in a consonant other than ṃ/m → translation
+       (n before a quote counts as ṃ: dhamman’ti).
     3. More foreign than Pāli votes → translation; more Pāli → Pāli.
     4. A tie with foreign votes → translation (Pāli has no such words). No votes at
        all: a quote + ti ("bhikkhavo"ti) or a doubled aspirate (kkh, cch …) → Pāli;
        3+ words → Pāli; shorter → None (goes with its neighbours)."""
     if is_non_latin_line(line):
         return "en"
-    low = line.lower().replace("ṃ", "ṁ")
+    low = QUOTE_N.sub("ṁ", line.lower().replace("ṃ", "ṁ"))
     words = re.findall(r"[^\W\d_]+", low)
     if not words:
         return None
+    if sum(1 for w in words if CLOSED_WORD.match(w)) / len(words) > MAX_CLOSED:
+        return "en"
     p, f = word_votes(words)
     if f > p:
         return "en"
