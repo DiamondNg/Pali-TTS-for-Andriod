@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         "Male · Piper (offline, download once)" to PIPER,
         "Kannada · Google voice on this phone (offline)" to ANDROID_KANNADA,
     )
-    private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_core.py
+    private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x", "2x")  // from pali_core.py
     private var translationSpeeds = listOf(0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0)
     private var enVoices = listOf(AUTO_LABEL to AUTO_VOICE, SYSTEM_LABEL to "")
 
@@ -302,7 +302,7 @@ class MainActivity : AppCompatActivity() {
             else -> R.id.mode_pi
         })
         paliVoice.setSelection(paliVoices.indexOfFirst { it.second == prefs.getString("voice", "") }.coerceAtLeast(0))
-        paliSpeed.value = prefs.getInt("rate", 2).coerceIn(0, 4).toFloat()
+        paliSpeed.value = prefs.getInt("rate", 2).coerceIn(0, paliSpeeds.size - 1).toFloat()
         val en = prefs.getFloat("en_speed", 1f).toDouble()
         enSpeed.value = translationSpeeds.indexOfFirst { it == en }.coerceAtLeast(0).toFloat()
         text.text = prefs.getString("text", "")
@@ -758,9 +758,10 @@ class MainActivity : AppCompatActivity() {
             2. If more than 1 word in 10 ends in a consonant other than ṃ or m, the line is a translation (Pāli words end in a vowel or ṃ; dhamman’ti counts as ṃ).
             3. Each word votes. Pāli: it is one of the 145,000 word forms of the Suttas and Vinaya (with or without diacritics), has a letter only Pāli uses (ā, ṃ, ṭ …) or is a title (…sutta, …vagga). Translation: it is a common English, Malay, Spanish … word, has a letter Pāli lacks (f, q, w, x, z, é …) or ends in a consonant. Words of both kinds (para, there) and short ones (na, te, so) don't vote.
             4. More votes wins. A tie with a translation word is a translation (Venerable Sāriputta).
+            4b. A line with Pāli and then its translation (… kathā udapādi “Here, Bhante, …) is cut where the language changes: the words vote as in step 3, and a change counts only where enough words agree, most easily at a full stop, quote or double space. A single name (Ānanda,) in English stays English.
             5. No votes: a quote + ti (“bhikkhavo”ti) or kkh, cch, tth … means Pāli; 3 or more words are Pāli.
             6. A line still too short to tell follows the layout of the text: in Pāli / translation line by line, it takes the language of the line two above (three above for Pāli / English / Chinese); otherwise of the line above.
-            Malay lines with Pāli loan words (Ya, Bhante.) may be read as Pāli. Put Pāli and translation on separate lines.
+            Malay lines with Pāli loan words (Ya, Bhante.) may be read as Pāli. Separate lines for Pāli and translation work best.
 
             SAVE AUDIO
             • After playing, "Save audio…" lets you choose where to keep it. It is saved as MP3.
