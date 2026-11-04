@@ -1,0 +1,11 @@
+# MP3 encoder for "Save audio": LAME 3.100 (downloaded by .github/scripts/android_get_lame.sh)
+cmake_minimum_required(VERSION 3.22.1)
+project(mp3)
+set(LAME ${CMAKE_CURRENT_SOURCE_DIR}/lame-3.100)
+file(GLOB LAME_SOURCES ${LAME}/libmp3lame/*.c)
+add_library(mp3 SHARED mp3_jni.c ${LAME_SOURCES})
+target_include_directories(mp3 PRIVATE ${LAME}/include ${LAME}/libmp3lame)
+# No configure script on Android: the few settings LAME needs, set here
+target_compile_definitions(mp3 PRIVATE STDC_HEADERS HAVE_STDINT_H ieee754_float32_t=float)
+target_compile_options(mp3 PRIVATE -O2 -w)
+target_link_libraries(mp3 m)

@@ -1,5 +1,5 @@
 # Read Pāli Aloud for Android: the Python side, called from Kotlin (Chaquopy).
-# All text handling comes from the desktop app's pali_tts.py, so every platform
+# All text handling comes from pali_core.py (shared with the desktop app), so every platform
 # detects languages and transliterates exactly the same way.
 # Copyright (C) 2026 Āyasmā Paññādhammika — AGPL-3.0-or-later (see LICENSE).
 import json
@@ -28,17 +28,13 @@ def _stub_aksharamukha_dependencies():
 
 
 _stub_aksharamukha_dependencies()
-import pali_tts as core  # noqa: E402  (after the stand-ins)
+import pali_core as core  # noqa: E402  (after the stand-ins)
 
 
 def speeds():
     """Pāli speed labels ("0.33x" ...) and the default index, as JSON."""
     return json.dumps({"labels": [s[0] for s in core.SPEEDS], "default": core.DEFAULT_SPEED,
                        "translation": core.TRANSLATION_SPEEDS})
-
-
-def version():
-    return core.APP_VERSION
 
 
 def prepare_text(raw):

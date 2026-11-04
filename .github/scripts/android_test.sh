@@ -36,6 +36,7 @@ grep -q "SELFTEST OK" shots/selftest.log || { echo "--- all errors:"; adb logcat
 grep -q "SELFTEST OK" shots/selftest.log || fail "selftest"
 grep -q "ನಮೋ ತಸ್ಸ ಭಗವತೋ" shots/selftest.log || fail "Kannada transliteration"
 grep -q '"nya": true' shots/selftest.log || fail "ññ spelling"
+grep -q "SELFTEST join .* mp3 " shots/selftest.log || fail "MP3 export (LAME)"
 grep -q "SELFTEST piper" shots/selftest.log || fail "offline Piper voice"
 grep -q '"en", "Homage to the Blessed One' shots/selftest.log || fail "translation line not detected"
 sleep 3

@@ -1,10 +1,8 @@
 package io.github.diamondng.readpalialoud
 
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import android.media.MediaMuxer
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -12,7 +10,7 @@ import java.nio.ByteOrder
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Joining audio parts (Microsoft MP3s, phone-voice WAVs) into one file, and M4A export. */
+/** Joining audio parts (Microsoft MP3s, phone-voice WAVs) into one file (MP3 export: Mp3.kt). */
 object AudioTools {
     const val RATE = 24000  // = Microsoft's voice; everything is converted to this
     private const val TIMEOUT_US = 10_000L
@@ -172,64 +170,5 @@ object AudioTools {
             pos += s.size
         }
         writeWav(out, all)
-    }
-
-    /** Audio file → AAC in an .m4a file (Android has no MP3 encoder). */
-    fun toM4a(src: File, out: File) {
-        val samples = decodeMono(src).samples
-        val fmt = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, RATE, 1)
-        fmt.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-        fmt.setInteger(MediaFormat.KEY_BIT_RATE, 64_000)
-        fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16_384)
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-        val muxer = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        var track = -1
-        try {
-            codec.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            codec.start()
-            val info = MediaCodec.BufferInfo()
-            var pos = 0
-            var inputDone = false
-            var outputDone = false
-            while (!outputDone) {
-                if (!inputDone) {
-                    val i = codec.dequeueInputBuffer(TIMEOUT_US)
-                    if (i >= 0) {
-                        val buf = codec.getInputBuffer(i)!!
-                        buf.clear()
-                        val n = min(buf.capacity() / 2, samples.size - pos)
-                        val pts = pos * 1_000_000L / RATE
-                        if (n <= 0) {
-                            codec.queueInputBuffer(i, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            inputDone = true
-                        } else {
-                            buf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples, pos, n)
-                            codec.queueInputBuffer(i, 0, n * 2, pts, 0)
-                            pos += n
-                        }
-                    }
-                }
-                val o = codec.dequeueOutputBuffer(info, TIMEOUT_US)
-                if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    track = muxer.addTrack(codec.outputFormat)
-                    muxer.start()
-                } else if (o >= 0) {
-                    val buf = codec.getOutputBuffer(o)!!
-                    val config = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
-                    if (!config && info.size > 0 && track >= 0) {
-                        buf.position(info.offset)
-                        buf.limit(info.offset + info.size)
-                        muxer.writeSampleData(track, buf, info)
-                    }
-                    codec.releaseOutputBuffer(o, false)
-                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
-                }
-            }
-            codec.stop()
-            if (track >= 0) muxer.stop()
-        } finally {
-            codec.release()
-            muxer.release()
-        }
     }
 }

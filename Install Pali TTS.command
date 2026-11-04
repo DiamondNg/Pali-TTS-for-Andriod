@@ -60,6 +60,7 @@ echo "Building $APP_NAME.app ($ARCH) ..."
 cp -pL "$BUNDLED/bin/python3" "$C/MacOS/python3"
 ditto "$BUNDLED/lib" "$C/lib"
 cp "$SCRIPT_DIR/pali_tts.py" "$C/Resources/pali_tts.py"
+cp "$SCRIPT_DIR/pali_core.py" "$C/Resources/pali_core.py"
 if [ -f "$SCRIPT_DIR/.assets/AppIcon.icns" ]; then
     cp "$SCRIPT_DIR/.assets/AppIcon.icns" "$C/Resources/AppIcon.icns"
 fi

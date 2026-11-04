@@ -7,7 +7,7 @@ on:
   push:               # test builds on work branches only; main/tags are built by the Release
     branches: ['**', '!main']
     paths:
-      - 'pali_tts.py'
+      - 'pali_core.py'   # only the shared part: desktop-only changes (pali_tts.py) don't rebuild Android
       - 'android/**'
       - '.github/scripts/get_piper_model.sh'
       - '.github/scripts/android_*'
@@ -44,6 +44,9 @@ jobs:
 
       - name: Get the offline Piper voice (engine + Kannada model)
         run: bash .github/scripts/android_get_voice.sh
+
+      - name: Get the MP3 encoder source (LAME 3.100)
+        run: bash .github/scripts/android_get_lame.sh
 
       - name: Build APK
         working-directory: android

@@ -9,6 +9,7 @@ on:
     paths:
       - 'Install Pali TTS.command'
       - 'pali_tts.py'
+      - 'pali_core.py'
       - 'README_Mac.txt'
       - 'requirements-macos.txt'
       - 'assets/**'
@@ -114,7 +115,7 @@ jobs:
           set -e
           STAGE="$RUNNER_TEMP/dmg"
           mkdir -p "$STAGE"
-          cp "Install Pali TTS.command" pali_tts.py "$STAGE/"
+          cp "Install Pali TTS.command" pali_tts.py pali_core.py "$STAGE/"
           cp README_Mac.txt "$STAGE/Read Me.txt"
           cp LICENSE "$STAGE/License.txt"
           mkdir -p "$STAGE/.assets"
@@ -194,6 +195,19 @@ jobs:
           # The way the right-click Services menu runs it (Automator workflow)
           automator -i 'Evaṃ me sutaṃ. Ekaṃ samayaṃ bhagavā' "$HOME/Library/Services/Read Pali Aloud.workflow" > shots/service.log 2>&1 &
           check service 12
+          # One copy only: a second start hands its text to the running copy (which reads it at once)
+          export PALI_TTS_DUMP="$RUNNER_TEMP/dump.txt"
+          printf 'Evaṃ me sutaṃ.' | "$L" > shots/first.log 2>&1 &
+          sleep 8
+          printf 'Ekaṃ samayaṃ bhagavā' | "$L" > shots/second.log 2>&1
+          echo "second start exited: $?"
+          sleep 2
+          n=$(pgrep -f pali_tts.py | wc -l | tr -d ' ')
+          echo "running copies: $n, text in the window: '$(cat "$PALI_TTS_DUMP")'"
+          check single 1
+          unset PALI_TTS_DUMP
+          [ "$n" = 1 ] || { echo "FAIL: $n copies running"; exit 1; }
+          grep -q "Text received from another start" shots/first.log || { echo "FAIL: text not handed over"; exit 1; }
           tail -n +1 shots/*.log
 
       - name: Upload screenshots

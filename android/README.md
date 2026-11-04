@@ -14,6 +14,6 @@ Same features as the desktop app, on Android 7 or newer.
 - Or: **Share** → **Read Pāli Aloud**.
 
 ## How it is built
-Kotlin user interface; the text handling is the desktop's `pali_tts.py`, run by
+Kotlin user interface; the text handling is `pali_core.py` (shared with the desktop), run by
 [Chaquopy](https://chaquo.com/chaquopy/) (Python inside Android). GitHub Actions builds
 the APK and tests it on an Android emulator (`.github/workflows/build_android.yml`).

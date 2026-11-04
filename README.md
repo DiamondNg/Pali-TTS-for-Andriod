@@ -52,14 +52,17 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 ## Repository layout
 
 ```
-pali_tts.py                  shared app (Tkinter window, Pāḷi detection, transliteration, voices)
+pali_core.py                 text part shared by all platforms (Pāḷi detection, transliteration,
+                             Microsoft voices); only changes here rebuild Android
+pali_tts.py                  desktop app (Tkinter window, local voices, playback)
 Install Pali TTS.command     macOS installer (builds the .app and the Service, shipped in the DMG)
 README_Mac.txt               macOS instructions
 windows/                     Windows entry point, tray app, hotkey, UI Automation, Inno Setup script
 tools/offline_voices/        offline Kannada voice test kit (Mac)
 .github/scripts/             CI helpers: GUI tests, Piper model download (Hugging Face), slimming
 tools/                       icon maker, other tools
-android/, ios/               early mobile versions
+android/                     Android app (Kotlin + Chaquopy; MP3 via LAME, android/app/src/main/cpp)
+ios/                         early iOS Shortcut
 .github/workflows/           builds and tests: build_macos.yml (DMG), build_windows.yml (installer),
                              build_android.yml (APK)
 ```
@@ -88,7 +91,7 @@ Included software and data:
 - [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (Pāḷi → Kannada script):
   GNU AGPL 3.0.
 - [edge-tts](https://github.com/rany2/edge-tts) (Microsoft online voices) and lameenc (MP3):
-  LGPL 3.0; onnxruntime, miniaudio, comtypes: MIT; certifi: MPL 2.0; Python: PSF licence.
+  LGPL 3.0; LAME 3.100 (MP3 on Android): LGPL 2.0 or later; onnxruntime, miniaudio, comtypes: MIT; certifi: MPL 2.0; Python: PSF licence.
 
 ## Network domains (filtered networks)
 

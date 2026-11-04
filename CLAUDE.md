@@ -7,7 +7,7 @@ keep answers short, direct, with a confidence score; brainstorm before big chang
 Owner's rule: whenever starting a new chat would save tokens, say so, and update this file first
 (so the new chat can continue from it).
 
-## Status (2026-11-03)
+## Status (2026-11-04)
 - v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
   spelling 4, icon without white ring, first Windows installer.
 - Teacher confirmed the Mac DMG installs and works. Mac shortcut changed to Ctrl+Cmd+O (owner,
@@ -69,6 +69,19 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - v2.7 on branch `claude/busy-bell-5kx2wl`: save folder choosable ("Save audio to: <folder>" +
   "Change folder…" → `filedialog.askdirectory`), setting `save_dir` (default `default_save_dir()` =
   ~/Downloads); missing folder → error message, no silent fallback. Untested locally (no Tk).
+- v2.8 on branch `claude/brave-cray-21enqi` (PR; brave-sagan Android merged in, 2026-11-04):
+  `pali_core.py` = text part shared with Android (markers, SPEEDS, detection, to_kannada,
+  edge-tts, rate_factor, prepare_text); `pali_tts.py` does `from pali_core import *`;
+  Android CI path filter = `pali_core.py` only (desktop-only changes don't rebuild Android);
+  APP_VERSION stays in pali_tts.py (2.8). Detection: short line w/o diacritics is Pāli if
+  `QUOTE_TI` (”ti/’nti) or `PALI_CLUSTER` (kkh, cch, tth, ddh…) and no English/≥3-letter
+  Latin marker ("“bhikkhavo”ti." after "“Mendicants!”" was read in English). Owner asked
+  about a Pāli word list: lookup is fast (set), cost is size; maybe later (SuttaCentral freq list).
+  Mac: one copy (Unix socket instance.sock in settings dir; 2nd start hands text, exits; CI
+  test "single"); autoplay when started with text (Services/shortcut) and on hand-off.
+  Windows: Ctrl+Shift+Y and WM_COPYDATA text now autoplay. Android: always saves MP3 via
+  LAME 3.100 (NDK, `android/app/src/main/cpp`, source fetched by
+  `.github/scripts/android_get_lame.sh`, sha256 pinned; not compiled locally: sandbox blocked).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

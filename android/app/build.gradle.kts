@@ -1,5 +1,5 @@
 // Read Pāli Aloud for Android: Kotlin user interface + the desktop app's Python code
-// (pali_tts.py: language detection, Aksharamukha, Microsoft voices) run by Chaquopy.
+// (pali_core.py: language detection, Aksharamukha, Microsoft voices) run by Chaquopy.
 import java.util.Base64
 
 plugins {
@@ -73,6 +73,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    externalNativeBuild {  // MP3 encoder (LAME) for "Save audio"
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
     packaging {
         jniLibs.useLegacyPackaging = true  // compressed native libraries: much smaller download
     }
@@ -84,10 +90,10 @@ android {
     }
 }
 
-// pali_tts.py (the desktop app) is shared: copied into the app's Python files at build time
+// pali_core.py (the text part shared with the desktop app) is copied into the app's Python files at build time
 val corePython = layout.buildDirectory.dir("generated/pycore")
 val copyCore = tasks.register<Copy>("copyPaliCore") {
-    from(repoRoot.resolve("pali_tts.py"))
+    from(repoRoot.resolve("pali_core.py"))
     into(corePython)
 }
 tasks.named("preBuild") { dependsOn(copyCore) }

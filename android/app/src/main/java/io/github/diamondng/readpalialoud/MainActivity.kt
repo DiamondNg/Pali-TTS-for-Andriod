@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         "Male · Piper (offline, download once)" to PIPER,
         "Kannada · Google voice on this phone (offline)" to ANDROID_KANNADA,
     )
-    private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_tts.py
+    private var paliSpeeds = listOf("0.33x", "0.67x", "1x", "1.33x", "1.67x")  // from pali_core.py
     private var translationSpeeds = listOf(0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0)
     private var enVoices = listOf(AUTO_LABEL to AUTO_VOICE, SYSTEM_LABEL to "")
 
@@ -271,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 1.0 → "1x", 0.75 → "0.75x" (as speed_label() in pali_tts.py) */
+    /** 1.0 → "1x", 0.75 → "0.75x" (as speed_label() in pali_core.py) */
     private fun speedLabel(x: Double) =
         (if (x == Math.floor(x)) x.toLong().toString() else x.toString()) + "x"
 
@@ -518,12 +518,9 @@ class MainActivity : AppCompatActivity() {
     private val saveMp3 = registerForActivityResult(ActivityResultContracts.CreateDocument("audio/mpeg")) { uri ->
         uri?.let { writeSaved(it) }
     }
-    private val saveM4a = registerForActivityResult(ActivityResultContracts.CreateDocument("audio/mp4")) { uri ->
-        uri?.let { writeSaved(it) }
-    }
 
-    /** Microsoft's Pāli audio is saved as MP3 (as on the desktop); anything joined with the
-     *  phone's voices as M4A (Android cannot write MP3). */
+    /** Always saved as MP3 (as on the desktop): Microsoft's MP3 as it is, anything else
+     *  (phone voices, Piper, Pāli + translation) encoded by LAME. */
     private fun save() {
         val f = audio ?: return
         val key = audioKey ?: return
@@ -533,7 +530,7 @@ class MainActivity : AppCompatActivity() {
                     key.enSpeed ?: 1.0).toString()
             } catch (e: Throwable) { "pali_audio" }
             ui.post {
-                if (f.name.endsWith(".mp3")) saveMp3.launch("$name.mp3") else saveM4a.launch("$name.m4a")
+                saveMp3.launch("$name.mp3")
             }
         }
     }
@@ -544,7 +541,7 @@ class MainActivity : AppCompatActivity() {
         worker.execute {
             try {
                 val src = if (f.name.endsWith(".mp3")) f else
-                    File(cacheDir, "export.m4a").also { AudioTools.toM4a(f, it) }
+                    File(cacheDir, "export.mp3").also { Mp3.encodeFile(f, it) }
                 contentResolver.openOutputStream(uri)?.use { out -> src.inputStream().use { it.copyTo(out) } }
                 if (src != f) src.delete()
                 setStatus("Saved.")
@@ -678,14 +675,18 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "SELFTEST python $result")
                 val voices = if (phone.awaitReady()) phone.voices().size else -1
                 Log.i(TAG, "SELFTEST phone voices: $voices")
-                // Joining: two short silent WAVs → one, and M4A export
-                val a = File(cacheDir, "t1.wav").also { AudioTools.writeWav(it, ShortArray(2400)) }
+                // Joining: two short WAVs → one, and MP3 export (LAME), decoded back
+                val a = File(cacheDir, "t1.wav").also {
+                    AudioTools.writeWav(it, ShortArray(24000) { i -> (8000 * Math.sin(i * 0.1)).toInt().toShort() })
+                }
                 val b = File(cacheDir, "t2.wav").also { AudioTools.writeWav(it, ShortArray(12000), 16000) }
                 val j = File(cacheDir, "tj.wav")
                 AudioTools.join(listOf(a, b), j)
-                val m = File(cacheDir, "tj.m4a")
-                AudioTools.toM4a(j, m)
-                Log.i(TAG, "SELFTEST join ${j.length()} m4a ${m.length()}")
+                val m = File(cacheDir, "tj.mp3")
+                Mp3.encodeFile(j, m)
+                val back = AudioTools.decodeMono(m).samples.size / AudioTools.RATE.toDouble()
+                Log.i(TAG, "SELFTEST join ${j.length()} mp3 ${m.length()} decoded %.2f s".format(back))
+                if (m.length() < 1000 || back < 1.0) throw IllegalStateException("MP3 export failed")
                 // Offline Piper voice (the whole chain: Kannada → eSpeak NG → model → WAV)
                 Log.i(TAG, "SELFTEST piper download starting")
                 PiperVoice.download(this) { pct -> if (pct % 25 == 0) Log.i(TAG, "SELFTEST piper download $pct%") }
@@ -752,10 +753,10 @@ class MainActivity : AppCompatActivity() {
             • Auto: a voice for each line's language (English, Chinese, Malay, …). Add languages in the phone's text-to-speech settings.
 
             SAVE AUDIO
-            • After playing, "Save audio…" lets you choose where to keep it. Pāli with a Microsoft voice is saved as MP3, everything else as M4A.
+            • After playing, "Save audio…" lets you choose where to keep it. It is saved as MP3.
 
             Pāli is written in Kannada letters (Aksharamukha) so the Kannada voice pronounces it well.
-            Free software (AGPL-3.0). Āyasmā Paññādhammika.
+            Free software (AGPL-3.0). Āyasmā Paññādhammika. MP3: LAME (LGPL).
         """.trimIndent()
     }
 }

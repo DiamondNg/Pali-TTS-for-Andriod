@@ -39,3 +39,5 @@ android/app/libs/
 android/app/src/main/assets/piper/
 android/app/src/main/assets/piper_download.json
 dist-voice/
+# LAME source (downloaded by .github/scripts/android_get_lame.sh)
+android/app/src/main/cpp/lame-3.100/

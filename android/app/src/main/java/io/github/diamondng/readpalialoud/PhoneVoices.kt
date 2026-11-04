@@ -73,7 +73,7 @@ class PhoneVoices(context: Context, engine: String? = null) {
         v.locale.getDisplayName(Locale.ENGLISH) + " · " + v.name +
             (if (v.isNetworkConnectionRequired) " (online)" else "")
 
-    /** Best installed voice for a language code from pali_tts.guess_language ("en", "zh", ...);
+    /** Best installed voice for a language code from pali_core.guess_language ("en", "zh", ...);
      *  null = the phone's default voice. Same preferences as the desktop's pick_voice(). */
     fun voiceFor(lang: String): Voice? {
         val default = defaultVoice()
@@ -139,7 +139,7 @@ class PhoneVoices(context: Context, engine: String? = null) {
         const val KANNADA_HOWTO = "Google's Kannada voice is not installed yet: tap " +
             "\"Offline Kannada voice…\" for the steps, or choose a Microsoft voice (needs internet)."
 
-        // Same as PREFERRED_REGION / SIMILAR_LANGUAGE in pali_tts.py
+        // Same as PREFERRED_REGION / SIMILAR_LANGUAGE in pali_tts.py (desktop)
         val PREFERRED_REGION = mapOf("en" to "US", "zh" to "CN", "pt" to "BR", "es" to "ES",
             "fr" to "FR", "de" to "DE")
         val SIMILAR_LANGUAGE = mapOf("ms" to listOf("id"), "id" to listOf("ms"),
