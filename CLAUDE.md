@@ -102,6 +102,10 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   4+ known pairs, ≥90% agreement. AN10 interleaved test: alternating wrong 0.81%→0.02%
   (diacritics), 2.13%→0.02% (plain); pi/en/zh same gain; paragraph blocks 0.03% (unchanged);
   Pāli only 0%. Help (desktop help_text + Android HELP) lists these steps.
+- iOS (2026-11-04): owner chose option B (no native app: $99/yr, App Store vs AGPL/GPL). `ios/README_iOS_Shortcut.txt`
+  rewritten: Kannada voice check, Quick Look diagnosis, Replace Text steps = desktop clean-up
+  (quotes, ṁ, dashes, optional NFD fixes, ಞ್ಞ→ನ್ನ್ಯ, [.;!?]→।), Speak Text voice by name. Untested
+  (owner reported garbled voice with the old recipe; cause not yet known).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

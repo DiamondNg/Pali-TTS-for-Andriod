@@ -1,136 +1,181 @@
-Pali TTS — iOS Shortcut (iPad)
-==============================
+Read Pāli Aloud — iOS Shortcut (iPhone and iPad)
+================================================
 
-Select Pali text anywhere -> tap Share -> Read Pali Aloud -> audio plays.
+Select Pāli text anywhere -> Share -> Read Pali Aloud -> it is spoken.
 
-BEFORE YOU START
-  1. Make sure your iPad is on iOS 15 or later
-  2. Install a Kannada voice:
-       Settings -> Accessibility -> Spoken Content -> Voices
-       -> tap "Add Voice" -> scroll to Kannada -> download Meera or Rishi
-  3. You need internet when using the shortcut
+What it does: sends the Pāli to the Aksharamukha website, which writes it
+in Kannada letters, then an Apple Kannada voice reads those letters.
+It does the same clean-up as the desktop app: removes quotes, fixes ṁ and
+ññ, and turns . ; ! ? into pauses.
+
+Limits (compared with the desktop/Android app):
+  • Select ONLY Pāli. English lines would be turned into Kannada letters
+    too and sound like nonsense.
+  • Needs internet (for the Aksharamukha website).
+  • Uses Apple's Kannada voice (not the Microsoft voice: Shortcuts can't
+    reach it).
 
 ════════════════════════════════════════════════════════════════
-CREATE THE SHORTCUT
+PART 1 — CHECK THE KANNADA VOICE  (most common cause of garbled sound)
 ════════════════════════════════════════════════════════════════
 
-Open the Shortcuts app. Tap the blue + button (top right).
+If no Kannada voice is installed, iOS reads the Kannada letters with
+another voice. That sounds garbled or silent.
 
-── Step 1: Name it ──────────────────────────────────────────────
+  1. Settings -> Accessibility -> Spoken Content -> Voices
+  2. Look for "Kannada". Tap it and download a voice (tap the cloud
+     icon). Wait until the download finishes.
+  3. If there is no "Kannada" in the list, your iOS version has no
+     Kannada voice. Then this shortcut cannot work properly —
+     tell Claude which iOS version you have.
 
-At the very top where it says "New Shortcut", tap it and type:
-  Read Pali Aloud
-Tap Done on the keyboard.
+════════════════════════════════════════════════════════════════
+PART 2 — FIND WHERE IT GOES WRONG  (2 minutes, do this once)
+════════════════════════════════════════════════════════════════
 
-── Step 2: Configure what it receives ───────────────────────────
+  1. Open your existing shortcut in the Shortcuts app.
+  2. Below "Get Contents of URL" add the action "Quick Look"
+     (search: Quick Look).
+  3. Run the shortcut on the test word:  aññaṃ dhammaṃ
+  4. Look at what Quick Look shows:
+       • Kannada letters (like ಅನ್ನ್ಯಂ ಧಮ್ಮಂ or ಅಞ್ಞಂ ಧಮ್ಮಂ)
+           -> the text is fine; the VOICE is the problem -> Part 1,
+              and in Part 3 step 9 choose the Kannada voice by name.
+       • English words, an error message, or web page code (< >)
+           -> the website failed -> check internet, try again later.
+       • Latin letters with odd marks or boxes
+           -> the input is the problem -> Part 3 step 3.
+  5. Delete the Quick Look action afterwards (long-press it -> Delete).
 
-Tap the settings icon at the top right (looks like a slider/toggle icon).
+════════════════════════════════════════════════════════════════
+PART 3 — BUILD THE IMPROVED SHORTCUT
+════════════════════════════════════════════════════════════════
 
-You will see a screen with "Details" options.
-  • Tap "Add to Share Sheet" to turn it ON (green)
-  • Under "Receive", tap "Nothing" and change it to select:
-      ✓ Text
-      ✓ Rich Text
-    (tick both, then tap Done)
-  • Tap Done to go back to the shortcut editor.
+Tip: to copy the special text below (Kannada letters, regex), open this
+page on the iPhone/iPad, press and hold on it, Copy, then paste.
 
-── Step 3: Add the first action (POST to aksharamukha) ──────────
+Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
 
-At the bottom of the screen, tap the search bar that says
-"Search for apps and actions".
+── Step 1: Receive text from the Share menu ─────────────────────
 
-Type: URL
-Tap "Get Contents of URL" from the list.
+  Tap the (i) / settings button -> turn ON "Show in Share Sheet".
+  At the top of the shortcut a block appears: "Receive ... from".
+    • Tap the input types -> keep only Text (and Rich Text).
+    • "If there's no input" -> choose "Get Clipboard".
+      (So you can also Copy text and run the shortcut from its icon.)
 
-A blue block appears in the shortcut. Now set it up:
+── Step 2: Remove quotes ────────────────────────────────────────
 
-  a) Tap the "URL" field inside the block and type (or paste):
-       https://aksharamukha-plugin.appspot.com/api/public
+  Add action "Replace Text".
+    Find:           ["'“”‘’]
+    Replace with:   (leave EMPTY)
+    Input:          Shortcut Input
+    Show More -> Regular Expression: ON
+  (Quotes make the voice pause in the middle of "sarīran’ti".)
 
-  b) Tap "Show More" (or the expand arrow) on the same block.
+── Step 3: Fix ṁ and dashes ─────────────────────────────────────
 
-  c) Tap "Method" and change it from GET to POST.
+  Add "Replace Text":   Find  ṁ   Replace with  ṃ
+                        (Regular Expression OFF, Case Sensitive ON)
+  Add "Replace Text":   Find  Ṁ   Replace with  Ṃ
+  Add "Replace Text":   Find  [—–]   Replace with  (one space)
+                        Regular Expression ON
 
-  d) Tap "Request Body" and choose "Form".
+  Each new Replace Text must use the result of the one before
+  ("Updated Text") — Shortcuts normally links it by itself.
 
-  e) You will see an "Add new field" button. Tap it 4 times
-     to add 4 fields. Fill them in like this:
+  ONLY if Part 2 showed odd marks/boxes (letters stored as "a + mark"),
+  add one more Replace Text per letter, Regular Expression ON:
+      Find  a\x{0304}   Replace with  ā
+      Find  i\x{0304}   Replace with  ī
+      Find  u\x{0304}   Replace with  ū
+      Find  m\x{0323}   Replace with  ṃ
+      Find  n\x{0307}   Replace with  ṅ
+      Find  n\x{0303}   Replace with  ñ
+      Find  t\x{0323}   Replace with  ṭ
+      Find  d\x{0323}   Replace with  ḍ
+      Find  n\x{0323}   Replace with  ṇ
+      Find  l\x{0323}   Replace with  ḷ
 
-     Field 1:  Key: source    Value: IASTPali
-     Field 2:  Key: target    Value: Kannada
-     Field 3:  Key: nativize  Value: true
-     Field 4:  Key: text      Value: [see below]
+── Step 4: Convert to Kannada letters ───────────────────────────
 
-     For Field 4 value: don't type anything.
-     Instead tap the Value box, then tap the orange/blue
-     "Shortcut Input" pill that appears above the keyboard.
-     This inserts the selected text automatically.
+  Add action "Get Contents of URL".
+    URL:  https://aksharamukha-plugin.appspot.com/api/public
+    Show More:
+      Method:        POST
+      Request Body:  Form
+      Add 4 fields (Text type):
+        source    IASTPali
+        target    Kannada
+        nativize  true
+        text      -> tap the value, choose the magic variable
+                     "Updated Text" (result of the LAST Replace Text,
+                     NOT "Shortcut Input")
 
-── Step 4: Add the second action (Speak) ────────────────────────
+  ⚠ If "text" still uses "Shortcut Input", steps 2–3 are skipped.
 
-Tap the search bar again at the bottom.
-Type: Speak
-Tap "Speak Text" from the list.
+── Step 5: Fix ññ ───────────────────────────────────────────────
 
-A new block appears. Set it up:
+  The Kannada voice says ಞ್ಞ like "bb" (aññaṃ -> "abbaṃ").
+  The teacher chose the spelling ನ್ನ್ಯ instead.
 
-  a) The text field in the block should already say
-     "Contents of URL" — if not, tap it and select
-     "Contents of URL" from the suggestions.
+  Add "Replace Text":
+    Find:          ಞ್ಞ
+    Replace with:  ನ್ನ್ಯ
+    Input:         Contents of URL
+    Regular Expression OFF
 
-  b) Tap "Show More" on the Speak Text block:
-       Language: tap it -> search for Kannada -> select "Kannada (India)"
-       Rate: 0.45
-       Pitch: 1.0
-       Wait Until Finished: turn ON
+── Step 6: Full stops become pauses ─────────────────────────────
 
-── Step 5: Save ─────────────────────────────────────────────────
+  Add "Replace Text":
+    Find:          [.;!?]
+    Replace with:  ।
+    Regular Expression ON
 
-Tap Done (top right). The shortcut is saved.
+── Step 7: Speak ────────────────────────────────────────────────
+
+  Add action "Speak Text". Text = "Updated Text" (from step 6).
+  Show More:
+    Wait Until Finished:  ON
+    Language:  Kannada (India)
+    Voice:     choose the Kannada voice by name (not "Default")
+    Rate:      start at the middle; slower = more to the left
+    Pitch:     middle
+
+  Tap Done. The shortcut is saved.
 
 ════════════════════════════════════════════════════════════════
 HOW TO USE IT
 ════════════════════════════════════════════════════════════════
 
-  1. In any app — PDF reader, Safari, Books, Word — press and
-     hold on Pali text until the selection handles appear.
-     Drag to select the text you want.
+  1. In any app (Safari, Books, PDF reader…) press and hold on the
+     Pāli text and drag the handles to select it.
+  2. Tap "Share" in the menu above the selection
+     (or the Share icon: a box with an arrow).
+  3. Tap "Read Pali Aloud" (scroll the list if needed;
+     "Edit Actions" lets you put it at the top).
+  4. First time: allow the shortcut to use the internet / send text
+     to aksharamukha-plugin.appspot.com -> "Always Allow".
 
-  2. Tap the Share icon (box with arrow pointing up), OR
-     tap "Share" in the popup menu above the selected text.
-
-  3. In the Share Sheet that slides up, look for
-     "Read Pali Aloud". You may need to scroll right
-     along the top row of icons.
-
-  4. Tap it — audio starts playing in a few seconds.
-
-FIRST TIME ONLY: iOS may ask "Allow Read Pali Aloud to access
-your network?" — tap Allow.
-
-To change speed: open Shortcuts app, tap the shortcut,
-tap the Speak Text block, change Rate:
-  0.3 = slow  |  0.45 = normal  |  0.6 = fast
-
-════════════════════════════════════════════════════════════════
-IF YOU CAN'T FIND IT IN THE SHARE SHEET
-════════════════════════════════════════════════════════════════
-
-  1. Open Shortcuts app
-  2. Long-press "Read Pali Aloud" -> Details
-  3. Make sure "Add to Share Sheet" is ON
-  4. Try sharing again — it should now appear
+  Some apps (Books, some PDF readers) share a file instead of text.
+  Then: select -> Copy -> run the shortcut from the Shortcuts app or
+  from its Home Screen icon (it reads the clipboard).
 
 ════════════════════════════════════════════════════════════════
 TROUBLESHOOTING
 ════════════════════════════════════════════════════════════════
 
-  No sound / wrong language:
-    Check the Kannada voice is downloaded:
-    Settings -> Accessibility -> Spoken Content -> Voices -> Kannada
+  Garbled / foreign-sounding voice:
+    Part 1 (Kannada voice), then step 7 (choose the voice by name).
+    Also check you selected only Pāli, no English.
 
-  "The operation couldn't be completed" or blank result:
-    The aksharamukha API may be temporarily down. Try again shortly.
+  "The operation couldn't be completed" or blank:
+    The Aksharamukha website may be down, or no internet. Try later.
 
-  Shortcut runs but nothing happens:
-    Make sure "Wait Until Finished" is ON in the Speak Text block.
+  Still says "abbaṃ" for aññaṃ:
+    Step 5 must come AFTER "Get Contents of URL", and its Find text
+    must be the Kannada ಞ್ಞ copied from this page.
+
+  Not in the Share menu:
+    Shortcuts -> long-press Read Pali Aloud -> Details ->
+    "Show in Share Sheet" ON.
