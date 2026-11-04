@@ -80,6 +80,10 @@ PALI_CLUSTER = re.compile(r"kkh|ggh|cch|jjh|tth|ddh|pph|bbh")
 PALI_ONLY_LETTERS = re.compile(r"[āīūṃṁṅṭḍṇḷ]")
 FOLD = str.maketrans("āīūṃṁṅñṭḍṇḷ", "aiummnntdnl")
 # Frequent 1–2 letter Pāli words: never counted as words of another language ("na", "te")
+# Endings of sutta/chapter titles ("Kanhamaggasutta", "Akkosavagga"): one-word headings
+# are often not in the word list
+PALI_TITLE = re.compile(r"(sutta|vagga|vatthu|kath[āa]|sikkh[āa]pada|niddesa|nip[āa]ta|"
+                        r"pa[ññ]{2}[āa]saka|pann[āa]saka|sa[ṁm]yutta|bh[āa][ṇn]av[āa]ra)$")
 PALI_SHORT = set("ca ti na pe vā va so te no me yo ye ce hi pi vo nu ki tu ve ha sa "
                  "ta ya ma mā tā yā sā".split())
 _LISTS = None
@@ -112,7 +116,8 @@ def word_votes(words):
     pali, plain, foreign = word_lists()
     p = f = 0
     for w in words:
-        if w in pali or PALI_ONLY_LETTERS.search(w) or (len(w) > 2 and w in plain):
+        if w in pali or PALI_ONLY_LETTERS.search(w) or (len(w) > 2 and w in plain) \
+                or (len(w) > 6 and PALI_TITLE.search(w)):
             p += 1
         elif w in foreign or NON_PALI_LETTERS.search(w) or not PALI_WORD.fullmatch(w) \
                 or (len(w) > 2 and CLOSED_WORD.match(w)):
@@ -124,7 +129,7 @@ def line_language(line):
     """"pi" (Pāli), "en" (translation: any other language), or None (too short to tell).
 
     1. Other scripts (Chinese, Thai, …) → translation.
-    2. Each word votes: Pāli if it is in the Pāli word list (50,000 forms from the
+    2. Each word votes: Pāli if it is in the Pāli word list (all 145,000 forms of the
        Suttas and Vinaya, also without diacritics) or has a Pāli-only letter (ā, ṃ, ṭ …);
        foreign if it is a common English/Malay/Spanish/… word, has a letter Pāli lacks
        (f, q, w, x, z, é …) or ends in a consonant (Pāli ends in a vowel or ṃ; final m
@@ -206,21 +211,50 @@ def guess_language(line):
             best, score = code, n
     return best
 
+def line_period(langs):
+    """How the known languages repeat: 1 = same as the line before (plain text),
+    2 = Pāli/translation alternating, 3 = Pāli/English/Chinese … Used for lines too
+    short to tell. Needs 4+ known lines and 90% agreement, else 1."""
+    best, best_score = 1, 0.0
+    for k in (1, 2, 3, 4):
+        pairs = [(langs[i], langs[i - k]) for i in range(k, len(langs))
+                 if langs[i] and langs[i - k]]
+        if len(pairs) < 4:
+            continue
+        score = sum(1 for x, y in pairs if x == y) / len(pairs)
+        if score > best_score + 0.05:  # a longer period must be clearly better
+            best, best_score = k, score
+    return best if best == 1 or best_score >= 0.9 else 1
+
+
+def line_languages(lines):
+    """Language of each line ("pi", "en", "zh" …, or None: still unknown)."""
+    langs = []
+    for ln in lines:
+        lang = line_language(ln)
+        langs.append(guess_language(ln) if lang == "en" else lang)
+    k = line_period(langs)
+    for i in range(k, len(langs)):
+        if langs[i] is None and langs[i - k]:
+            langs[i] = langs[i - k]
+    return langs
+
+
 def split_segments(text):
     """[(lang, text)] in reading order; lang is "pi" (Pāli) or the language code
-    of a translation line ("en", "zh", "ms", ...)."""
+    of a translation line ("en", "zh", "ms", ...). A line too short to tell takes
+    the language of the line one period back: the line before in plain text, two
+    lines back when Pāli and translation alternate line by line."""
+    lines = [ln for ln in text.splitlines() if ln.strip() and not is_section_marker(ln)]
+    langs = line_languages(lines)
     segs, pending = [], []
-    for ln in text.splitlines():
-        if not ln.strip() or is_section_marker(ln):
-            continue
-        lang = line_language(ln)
-        if lang is None:  # short line: goes with its neighbours
+    for i, ln in enumerate(lines):
+        lang = langs[i]
+        if lang is None:  # still unknown: goes with its neighbours
             if not segs:
                 pending.append(ln)
                 continue
             lang = segs[-1][0]
-        elif lang == "en":
-            lang = guess_language(ln)
         if pending:
             ln = " ".join(pending + [ln])
             pending = []

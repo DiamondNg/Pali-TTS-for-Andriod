@@ -82,10 +82,11 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   Windows: Ctrl+Shift+Y and WM_COPYDATA text now autoplay. Android: always saves MP3 via
   LAME 3.100 (NDK, `android/app/src/main/cpp`, source fetched by
   `.github/scripts/android_get_lame.sh`, sha256 pinned; not compiled locally: sandbox blocked).
-- v2.8 also (owner's spec, 2026-11-04): word-list detection. `pali_words.py` (700 KB, made by
-  `tools/build_pali_words.py BILARA_DIR`, sparse clone of bilara-data `published`): WORDS = top
-  50k Pāli forms (3+ letters) of Sutta+Vinaya (owner raised 30k→50k: 92.9% of 3+ letter
-  occurrences, 82.2% of all; unseen AN10 text 91.8%; all 145k forms would give 94.3%), NOT_PLAIN
+- v2.8 also (owner's spec, 2026-11-04): word-list detection. `pali_words.py` (2.2 MB, made by
+  `tools/build_pali_words.py BILARA_DIR`, sparse clone of bilara-data `published`): WORDS = ALL
+  145k Pāli forms (3+ letters) of Sutta+Vinaya (owner: 30k→50k→all; coverage 30k 88.2% / 50k
+  92.9% / all 100% of 3+ letter occurrences; unseen AN10 text 88.8/91.8/94.3%), load ≈360 ms
+  desktop (lazy, first detection), NOT_PLAIN
   (folded forms that are English words), ENGLISH (top 3000 Sujato/Brahmali words never Pāli).
   `line_language`: >10% of words end in a consonant other than ṃ/m → en (owner's rule, m added
   by owner; `QUOTE_N`: n before a quote = ṃ, "dhamman’ti", else 1.7% of Pāli misread); then each
@@ -94,7 +95,13 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   more votes wins; tie with foreign → en; no votes → quote-ti/cluster → pi, 3+ words → pi, else
   None. No "any diacritic → Pāli" (names in English). Owner: don't worry about Malay (Pāli loans;
   "Saya suka kopi", "Ya, Bhante." → pi accepted). Held-out AN10 (3000 lines each): 0% wrong on
-  Pāli with/without diacritics, English 0.03% (a bare "Sāriputta" line). Load ≈100 ms (lazy).
+  Pāli with/without diacritics, English 0.03% (a bare "Sāriputta" line).
+  `PALI_TITLE` (…sutta/vagga/vatthu/kathā… endings) votes Pāli: one-word headings were most
+  "unknown" lines. `line_languages()` + `line_period()`: unknown (short) line takes the language
+  one period back; period 1 (plain text), 2 (pi/translation alternating), 3 (pi/en/zh), 4; needs
+  4+ known pairs, ≥90% agreement. AN10 interleaved test: alternating wrong 0.81%→0.02%
+  (diacritics), 2.13%→0.02% (plain); pi/en/zh same gain; paragraph blocks 0.03% (unchanged);
+  Pāli only 0%.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
