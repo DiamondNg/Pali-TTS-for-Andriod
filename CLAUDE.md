@@ -102,6 +102,18 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   4+ known pairs, ≥90% agreement. AN10 interleaved test: alternating wrong 0.81%→0.02%
   (diacritics), 2.13%→0.02% (plain); pi/en/zh same gain; paragraph blocks 0.03% (unchanged);
   Pāli only 0%. Help (desktop help_text + Android HELP) lists these steps.
+- v2.9 on branch `claude/trusting-galileo-xlyh3k` (2026-11-04, no PR yet): `split_line()` in
+  pali_core (all 3 versions): a line with Pāli then translation is cut where the language changes
+  (per-word votes as `word_votes`, Viterbi with switch cost 2.5 / comma 2.0 / sentence end, quote,
+  double space 0.5). Owner's case "…udapādi  “Here, Bhante, …" was all English, now split.
+  Held-out AN10 (list built `--hold-out an10`): Pāli+English glued on one line 38.7% → 1.3% words
+  wrong; punctuation-only split 5.7%; Pāli/English-only lines unchanged. Owner's reorder idea
+  (word list before the >10% consonant rule) tested: no gain, English 3→4 wrong lines → kept order.
+  Pāli speed 2x added (`"+50%"`; Android slider valueTo 5). Help step 4b.
+  Owner's "continuous reading" = TPR-style: open a sutta in the app, tap anywhere, it reads on
+  from there (no copy/paste). TPR (bksubhuti/tipitaka-pali-reader, Flutter) reads per sentence from
+  its ePitaka database (Pāli + translations with language codes: no detection needed), Pāli →
+  Kannada/Sinhala/Devanagari, phone TTS. Not started; floating button only while playing (later).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

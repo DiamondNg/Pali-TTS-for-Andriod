@@ -23,12 +23,13 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 
 ## Features (macOS and Windows)
 
-- Speed slider for Pāḷi (0.33x–1.67x) and a separate one for translations (0.75x–3x).
+- Speed slider for Pāḷi (0.33x–2x) and a separate one for translations (0.75x–3x).
 - **Read:** Pāḷi / Translation / Both. Pāḷi lines are detected automatically; translation lines
   in any language use the computer's own voices ("Auto (by language)" picks one per line).
   Detection uses a list of all 145,000 Pāli word forms of the Suttas and Vinaya, so Pāli typed
   without diacritics (*evam me sutam*) is recognised too; in line-by-line Pāli/translation text,
-  short lines follow the alternating pattern.
+  short lines follow the alternating pattern. A line with Pāli followed by its translation is
+  cut where the language changes.
 - Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
   macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
