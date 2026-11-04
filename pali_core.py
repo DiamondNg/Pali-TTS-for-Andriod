@@ -29,7 +29,6 @@ ENGLISH_MARKERS = {
 }
 # IAST Pāli never uses these letters; English often does
 NON_PALI_LETTERS = re.compile(r"[fqwxz]")
-PALI_DIACRITICS = re.compile(r"[āīūṃṁṅñṭḍṇḷĀĪŪṂṀṄÑṬḌṆḶ]")
 
 # (label, edge-tts rate, multiplier; the multiplier is no longer used)
 # The teacher's old 0.75x is the new 1x; every old step was scaled by 4/3
@@ -64,15 +63,6 @@ def is_non_latin_line(line):
 def is_section_marker(line):
     return len(re.sub(r'[\s\d\.\(\)\[\]\-–—:;,\xa7ivxlcmIVXLCM]', '', line.strip())) == 0
 
-def is_english_line(line):
-    words = re.findall(r"[a-zA-Z]+", line.lower())
-    if not words:
-        return False
-    matches = sum(1 for w in words if w in ENGLISH_MARKERS or NON_PALI_LETTERS.search(w))
-    if PALI_DIACRITICS.search(line) and matches < 2:
-        return False
-    return matches >= 2 or (len(words) >= 3 and matches / len(words) > 0.3)
-
 # Every letter of romanised (IAST) Pāli; a word with any other letter is not Pāli
 PALI_WORD = re.compile(r"[aāiīuūeokgṅcjñṭḍṇtdnpbmyrlvshḷṃṁ]+")
 # Pāli words end in a vowel or ṃ; most Malay, Spanish, English... lines have
@@ -82,32 +72,79 @@ CLOSED_WORD = re.compile(r".*[^aāiīuūeoṃṁ]$")
 QUOTE_TI = re.compile(r"[\"'”’]n?ti\b")
 PALI_CLUSTER = re.compile(r"kkh|ggh|cch|jjh|tth|ddh|pph|bbh")
 
+# Pāli-only letters: a word with one is Pāli. Not ñ alone: Spanish has it (señor, año)
+PALI_ONLY_LETTERS = re.compile(r"[āīūṃṁṅṭḍṇḷ]")
+FOLD = str.maketrans("āīūṃṁṅñṭḍṇḷ", "aiummnntdnl")
+# Frequent 1–2 letter Pāli words: never counted as words of another language ("na", "te")
+PALI_SHORT = set("ca ti na pe vā va so te no me yo ye ce hi pi vo nu ki tu ve ha sa "
+                 "ta ya ma mā tā yā sā".split())
+_LISTS = None
+
+
+def word_lists():
+    """(Pāli words, Pāli words without diacritics, English words) from pali_words.py,
+    loaded on first use (≈ 30 ms)."""
+    global _LISTS
+    if _LISTS is None:
+        try:
+            import pali_words as pw
+            pali = set(pw.WORDS.split())
+            plain = {w.translate(FOLD) for w in pali} - set(pw.NOT_PLAIN.split())
+            english = set(pw.ENGLISH.split())
+        except ImportError:  # list missing: the rules below still work
+            pali, plain, english = set(), set(), set()
+        foreign = set(ENGLISH_MARKERS)
+        for markers in LATIN_MARKERS.values():
+            foreign |= markers
+        # Words of both kinds ("para", "ito", "there") count for neither side
+        both = (foreign | english) & (pali | plain | PALI_SHORT)
+        foreign = (foreign | english) - both
+        _LISTS = (pali - both, plain - both, foreign)
+    return _LISTS
+
+
+def word_votes(words):
+    """(Pāli, foreign) evidence counts for lower-case words."""
+    pali, plain, foreign = word_lists()
+    p = f = 0
+    for w in words:
+        if w in pali or PALI_ONLY_LETTERS.search(w) or (len(w) > 2 and w in plain):
+            p += 1
+        elif w in foreign or NON_PALI_LETTERS.search(w) or not PALI_WORD.fullmatch(w) \
+                or (len(w) > 2 and CLOSED_WORD.match(w) and not w.endswith("m")):
+            f += 1
+    return p, f
+
+
 def line_language(line):
     """"pi" (Pāli), "en" (translation: any other language), or None (too short to tell).
 
-    Other scripts (Chinese, Thai, ...) and English count as translation. Latin text
-    is Pāli when its words use only Pāli letters and (nearly) all end in a vowel
-    or ṃ — this also catches Pāli typed without diacritics ("Namo tassa bhagavato")."""
+    1. Other scripts (Chinese, Thai, …) → translation.
+    2. Each word votes: Pāli if it is in the Pāli word list (30,000 forms from the
+       Suttas and Vinaya, also without diacritics) or has a Pāli-only letter (ā, ṃ, ṭ …);
+       foreign if it is a common English/Malay/Spanish/… word, has a letter Pāli lacks
+       (f, q, w, x, z, é …) or ends in a consonant (Pāli ends in a vowel or ṃ; final m
+       is allowed: Pāli typed without diacritics, "evam").
+    3. More foreign than Pāli votes → translation; more Pāli → Pāli.
+    4. A tie with foreign votes → translation (Pāli has no such words). No votes at
+       all: a quote + ti ("bhikkhavo"ti) or a doubled aspirate (kkh, cch …) → Pāli;
+       3+ words → Pāli; shorter → None (goes with its neighbours)."""
     if is_non_latin_line(line):
         return "en"
-    words = re.findall(r"[^\W\d_]+", line.lower())
+    low = line.lower().replace("ṃ", "ṁ")
+    words = re.findall(r"[^\W\d_]+", low)
     if not words:
         return None
-    if is_english_line(line):
+    p, f = word_votes(words)
+    if f > p:
         return "en"
-    n = len(words)
-    foreign = sum(1 for w in words if not PALI_WORD.fullmatch(w))
-    closed = sum(1 for w in words if CLOSED_WORD.match(w))
-    if foreign / n >= 0.3 or closed / n > 0.2:
+    if p > f:
+        return "pi"
+    if f:  # as many foreign as Pāli words ("Venerable Sāriputta."): Pāli has none of them
         return "en"
-    if PALI_DIACRITICS.search(line) or n >= 3:
+    if QUOTE_TI.search(low) or PALI_CLUSTER.search(low):
         return "pi"
-    # Short line without diacritics ("bhikkhavo"ti.): Pāli if it has a clear sign
-    # of Pāli and no common word of another language (2-letter ones like na/te are Pāli too); otherwise too short to tell
-    if not any(w in ENGLISH_MARKERS or (len(w) > 2 and any(w in m for m in LATIN_MARKERS.values()))
-               for w in words) and (QUOTE_TI.search(line.lower()) or PALI_CLUSTER.search(line.lower())):
-        return "pi"
-    return None
+    return "pi" if len(words) >= 3 else None
 
 # Which language a translation line is in, for the "Auto" voice
 SCRIPTS = [  # (first, last code point, language)
@@ -123,7 +160,8 @@ SCRIPTS = [  # (first, last code point, language)
 ]
 LATIN_MARKERS = {  # common short words of languages written in Latin letters
     "ms": "yang dan ini itu dengan untuk tidak ada saya dia mereka akan dari kepada pada "
-          "oleh telah sudah atau juga kami kita adalah apa bagaimana",
+          "oleh telah sudah atau juga kami kita adalah apa bagaimana wahai benar sang "
+          "kamu bagus sekali terima kasih banyak selamat semua dua hal",
     "es": "el la los las que y de del en un una por con para es no se lo su al como más",
     "fr": "le la les des est et que une un dans pour pas qui sur au du ce il elle je",
     "de": "der die das und ist nicht ich ein eine zu mit von den dem sich auch es",

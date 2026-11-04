@@ -54,6 +54,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 ```
 pali_core.py                 text part shared by all platforms (Pāḷi detection, transliteration,
                              Microsoft voices); only changes here rebuild Android
+pali_words.py                Pāli word list for language detection (tools/build_pali_words.py)
 pali_tts.py                  desktop app (Tkinter window, local voices, playback)
 Install Pali TTS.command     macOS installer (builds the .app and the Service, shipped in the DMG)
 README_Mac.txt               macOS instructions
@@ -88,6 +89,9 @@ Included software and data:
   [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (Piper uses it to turn Kannada letters into
   speech sounds before the voice speaks; only its Kannada/English rules are bundled): GNU GPL 3.0
   or later.
+- Pāli word list (`pali_words.py`, made by `tools/build_pali_words.py`): from
+  [SuttaCentral bilara-data](https://github.com/suttacentral/bilara-data) (Mahāsaṅgīti Pāli,
+  Sujato/Brahmali translations), CC0.
 - [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (Pāḷi → Kannada script):
   GNU AGPL 3.0.
 - [edge-tts](https://github.com/rany2/edge-tts) (Microsoft online voices) and lameenc (MP3):

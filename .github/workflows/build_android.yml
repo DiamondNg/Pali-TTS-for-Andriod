@@ -7,6 +7,7 @@ on:
   push:               # test builds on work branches only; main/tags are built by the Release
     branches: ['**', '!main']
     paths:
+      - 'pali_words.py'
       - 'pali_core.py'   # only the shared part: desktop-only changes (pali_tts.py) don't rebuild Android
       - 'android/**'
       - '.github/scripts/get_piper_model.sh'

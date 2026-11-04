@@ -93,7 +93,7 @@ android {
 // pali_core.py (the text part shared with the desktop app) is copied into the app's Python files at build time
 val corePython = layout.buildDirectory.dir("generated/pycore")
 val copyCore = tasks.register<Copy>("copyPaliCore") {
-    from(repoRoot.resolve("pali_core.py"))
+    from(repoRoot.resolve("pali_core.py"), repoRoot.resolve("pali_words.py"))
     into(corePython)
 }
 tasks.named("preBuild") { dependsOn(copyCore) }
