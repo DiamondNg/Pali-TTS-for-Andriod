@@ -8,6 +8,8 @@ on:
     branches: ['**', '!main']
     paths:
       - 'pali_tts.py'
+      - 'pali_core.py'
+      - 'pali_words.py'
       - 'windows/**'
       - 'requirements-windows.txt'
       - 'assets/**'
@@ -54,7 +56,7 @@ jobs:
           pyinstaller --noconfirm --clean --windowed --name ReadPaliAloud `
             --icon assets/AppIcon.ico --add-data "assets/AppIcon.ico;." `
             --paths . --paths windows `
-            --hidden-import pali_tts --hidden-import hotkey --hidden-import tray --hidden-import uia `
+            --hidden-import pali_tts --hidden-import pali_core --hidden-import pali_words --hidden-import hotkey --hidden-import tray --hidden-import uia `
             --collect-submodules comtypes `
             --collect-all aksharamukha --collect-all edge_tts --collect-all miniaudio --hidden-import _cffi_backend --hidden-import lameenc --collect-data certifi `
             --collect-all piper --collect-binaries onnxruntime `

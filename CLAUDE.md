@@ -7,7 +7,7 @@ keep answers short, direct, with a confidence score; brainstorm before big chang
 Owner's rule: whenever starting a new chat would save tokens, say so, and update this file first
 (so the new chat can continue from it).
 
-## Status (2026-11-03)
+## Status (2026-11-04)
 - v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
   spelling 4, icon without white ring, first Windows installer.
 - Teacher confirmed the Mac DMG installs and works. Mac shortcut changed to Ctrl+Cmd+O (owner,
@@ -69,7 +69,71 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - v2.7 on branch `claude/busy-bell-5kx2wl`: save folder choosable ("Save audio to: <folder>" +
   "Change folder…" → `filedialog.askdirectory`), setting `save_dir` (default `default_save_dir()` =
   ~/Downloads); missing folder → error message, no silent fallback. Untested locally (no Tk).
-- Mobile (discussed 2026-11-03): old Kivy prototype in `android/`, iOS Shortcut in `ios/`.
+- v2.8 on branch `claude/brave-cray-21enqi` (PR #11, open, description updated for 145k list; brave-sagan Android merged in, 2026-11-04):
+  `pali_core.py` = text part shared with Android (markers, SPEEDS, detection, to_kannada,
+  edge-tts, rate_factor, prepare_text); `pali_tts.py` does `from pali_core import *`;
+  Android CI path filter = `pali_core.py` only (desktop-only changes don't rebuild Android);
+  APP_VERSION stays in pali_tts.py (2.8). Detection: short line w/o diacritics is Pāli if
+  `QUOTE_TI` (”ti/’nti) or `PALI_CLUSTER` (kkh, cch, tth, ddh…) and no English/≥3-letter
+  Latin marker ("“bhikkhavo”ti." after "“Mendicants!”" was read in English). Owner asked
+  about a Pāli word list: lookup is fast (set), cost is size; maybe later (SuttaCentral freq list).
+  Mac: one copy (Unix socket instance.sock in settings dir; 2nd start hands text, exits; CI
+  test "single"); autoplay when started with text (Services/shortcut) and on hand-off.
+  Windows: Ctrl+Shift+Y and WM_COPYDATA text now autoplay. Android: always saves MP3 via
+  LAME 3.100 (NDK, `android/app/src/main/cpp`, source fetched by
+  `.github/scripts/android_get_lame.sh`, sha256 pinned; not compiled locally: sandbox blocked).
+- v2.8 also (owner's spec, 2026-11-04): word-list detection. `pali_words.py` (2.2 MB, made by
+  `tools/build_pali_words.py BILARA_DIR`, sparse clone of bilara-data `published`): WORDS = ALL
+  145k Pāli forms (3+ letters) of Sutta+Vinaya (owner: 30k→50k→all; coverage 30k 88.2% / 50k
+  92.9% / all 100% of 3+ letter occurrences; unseen AN10 text 88.8/91.8/94.3%), load ≈360 ms
+  desktop (lazy, first detection), NOT_PLAIN
+  (folded forms that are English words), ENGLISH (top 3000 Sujato/Brahmali words never Pāli).
+  `line_language`: >10% of words end in a consonant other than ṃ/m → en (owner's rule, m added
+  by owner; `QUOTE_N`: n before a quote = ṃ, "dhamman’ti", else 1.7% of Pāli misread); then each
+  word votes Pāli (list / folded list / Pāli-only letter, not ñ alone = Spanish) or foreign
+  (markers, ENGLISH, f/q/w/x/z, closed ending); words in both lists or `PALI_SHORT` vote nothing;
+  more votes wins; tie with foreign → en; no votes → quote-ti/cluster → pi, 3+ words → pi, else
+  None. No "any diacritic → Pāli" (names in English). Owner: don't worry about Malay (Pāli loans;
+  "Saya suka kopi", "Ya, Bhante." → pi accepted). Held-out AN10 (3000 lines each): 0% wrong on
+  Pāli with/without diacritics, English 0.03% (a bare "Sāriputta" line).
+  `PALI_TITLE` (…sutta/vagga/vatthu/kathā… endings) votes Pāli: one-word headings were most
+  "unknown" lines. `line_languages()` + `line_period()`: unknown (short) line takes the language
+  one period back; period 1 (plain text), 2 (pi/translation alternating), 3 (pi/en/zh), 4; needs
+  4+ known pairs, ≥90% agreement. AN10 interleaved test: alternating wrong 0.81%→0.02%
+  (diacritics), 2.13%→0.02% (plain); pi/en/zh same gain; paragraph blocks 0.03% (unchanged);
+  Pāli only 0%. Help (desktop help_text + Android HELP) lists these steps.
+- Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
+  (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
+- Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
+  `android/` = Gradle project (AGP 8.7.3, Kotlin 2.0.21, Chaquopy 16.1.0, Python 3.11 (3.12+ lacks armeabi-v7a), minSdk 24,
+  targetSdk 35, id `io.github.diamondng.readpalialoud` (owner: no sasanarakkha in the ID; Mac bundle id unchanged)). Kotlin UI (`MainActivity.kt`,
+  `PhoneVoices.kt` = Android TextToSpeech, `AudioTools.kt` = MediaCodec decode/join/AAC M4A)
+  + `app/src/main/python/bridge.py` importing the shared `pali_tts.py` (copied at build;
+  tkinter import now optional). Pip `--no-deps` from `app/requirements.txt` (all pure Python);
+  aksharamukha deps regex/yaml/requests/langcodes/fontTools stubbed in bridge.py (verified
+  identical output, 362 lines). Pāli voices: Microsoft M/F (online), phone Kannada (offline,
+  `android-kn`). Translation: Auto (by language) / phone default / any phone voice.
+  PROCESS_TEXT (select text → menu) + SEND (Share) → autoplay. Save: CreateDocument; MP3 if
+  Microsoft Pāli only, else M4A. Signing: committed `app/testing.keystore` (pw readpali) unless
+  secrets ANDROID_KEYSTORE_BASE64/_PASSWORD, ANDROID_KEY_ALIAS/_PASSWORD. CI
+  `build_android.yml` builds APK "Read Pali Aloud v<ver>.apk", emulator test
+  `.github/scripts/android_test.sh`. Android SDK/Maven blocked in sandbox: compile only in CI.
+  Owner answers (2026-11-03): public users, Android first; APK on GitHub Releases for now;
+  private key later (explained); background player YES → `Playback.kt` (app-wide MediaPlayer,
+  focus/noisy) + `PlaybackService.kt` (mediaPlayback foreground service, MediaSessionCompat,
+  MediaStyle notification); Python/voices/worker live in `Session` (window rebuild crashed
+  before). Piper YES → `PiperVoice.kt` with sherpa-onnx **1.13.8** AAR (2.x dropped eSpeak NG),
+  fetched + model converted by `.github/scripts/android_get_voice.sh` (sherpa's
+  add_meta_data.py + iso639-lang; espeak-ng-data from sherpa's amy package, only kn_dict).
+  APK with the model inside was 205 MB → owner chose option C: voice NOT in the APK; zip
+  `piper-kn-<hash>.zip` uploaded by CI to pre-release "android-voice" (never replaced),
+  `assets/piper_download.json` (url/name/size) → app downloads on first choice (dialog,
+  progress), unpacks to filesDir/piper, ⋮ "Remove Piper voice". Native libs compressed
+  (`useLegacyPackaging`). Google Kannada voice: own TTS instance on engine
+  com.google.android.tts + "Offline Kannada voice…" dialog (install intents) + Help. Autoplay
+  on shared text: yes. Private signing key made 2026-11-03 (PKCS12, alias readpalialoud, 4096-bit, SHA-256 1B:A1:26:95:…:7D:78), given to owner as files; owner added the 4 GitHub secrets; CI log confirms PRIVATE key + fingerprint.
+  CI GREEN 2026-11-03 run 41686297490 (all 5 emulator tests; Microsoft voice even worked from the
+  emulator: 4 s played). APK 66 MB (artifact PaliTTS-Android). Next: owner tests on a phone, then PR + v2.x Release.
 
 ## macOS architecture (v2, branch claude/pensive-archimedes-hdsrmw, 2026-11-02)
 - `pali_tts.py`: Tkinter window titled "Read Pāli Aloud": text box, 5-step speed slider

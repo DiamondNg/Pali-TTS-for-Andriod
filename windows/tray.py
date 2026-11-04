@@ -340,7 +340,7 @@ class Background:
                     text = uia.selected_text()
                     if not text.strip():  # program without UI Automation text: copy instead
                         text = hotkey.copy_selection()
-                    self.to_window.put(("open", text, False))
+                    self.to_window.put(("open", text, True))  # read at once (owner)
             except Exception:
                 pass
 
@@ -458,7 +458,7 @@ class Background:
                 cds = COPYDATASTRUCT.from_address(lparam)
                 data = json.loads(ctypes.string_at(cds.lpData, cds.cbData).decode("utf-8"))
                 text = data.get("text", "")
-                self.to_window.put(("open", text, False) if text.strip() else ("show",))
+                self.to_window.put(("open", text, True) if text.strip() else ("show",))
                 return 1
             if msg == WM_SHOW_POPUP:
                 if wparam == self.clicks and self.popup_enabled:
