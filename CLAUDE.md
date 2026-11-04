@@ -69,7 +69,7 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
 - v2.7 on branch `claude/busy-bell-5kx2wl`: save folder choosable ("Save audio to: <folder>" +
   "Change folder…" → `filedialog.askdirectory`), setting `save_dir` (default `default_save_dir()` =
   ~/Downloads); missing folder → error message, no silent fallback. Untested locally (no Tk).
-- v2.8 on branch `claude/brave-cray-21enqi` (PR; brave-sagan Android merged in, 2026-11-04):
+- v2.8 on branch `claude/brave-cray-21enqi` (PR #11, open, description updated for 145k list; brave-sagan Android merged in, 2026-11-04):
   `pali_core.py` = text part shared with Android (markers, SPEEDS, detection, to_kannada,
   edge-tts, rate_factor, prepare_text); `pali_tts.py` does `from pali_core import *`;
   Android CI path filter = `pali_core.py` only (desktop-only changes don't rebuild Android);

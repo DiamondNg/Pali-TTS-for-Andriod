@@ -26,6 +26,9 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 - Speed slider for Pāḷi (0.33x–1.67x) and a separate one for translations (0.75x–3x).
 - **Read:** Pāḷi / Translation / Both. Pāḷi lines are detected automatically; translation lines
   in any language use the computer's own voices ("Auto (by language)" picks one per line).
+  Detection uses a list of all 145,000 Pāli word forms of the Suttas and Vinaya, so Pāli typed
+  without diacritics (*evam me sutam*) is recognised too; in line-by-line Pāli/translation text,
+  short lines follow the alternating pattern.
 - Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
   macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
@@ -54,7 +57,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 ```
 pali_core.py                 text part shared by all platforms (Pāḷi detection, transliteration,
                              Microsoft voices); only changes here rebuild Android
-pali_words.py                Pāli word list for language detection (tools/build_pali_words.py)
+pali_words.py                Pāli word list (145,000 forms) for language detection (tools/build_pali_words.py)
 pali_tts.py                  desktop app (Tkinter window, local voices, playback)
 Install Pali TTS.command     macOS installer (builds the .app and the Service, shipped in the DMG)
 README_Mac.txt               macOS instructions
@@ -89,7 +92,7 @@ Included software and data:
   [eSpeak NG](https://github.com/espeak-ng/espeak-ng) (Piper uses it to turn Kannada letters into
   speech sounds before the voice speaks; only its Kannada/English rules are bundled): GNU GPL 3.0
   or later.
-- Pāli word list (`pali_words.py`, made by `tools/build_pali_words.py`): from
+- Pāli word list (`pali_words.py`, all 145,000 word forms, made by `tools/build_pali_words.py`): from
   [SuttaCentral bilara-data](https://github.com/suttacentral/bilara-data) (Mahāsaṅgīti Pāli,
   Sujato/Brahmali translations), CC0.
 - [Aksharamukha](https://github.com/virtualvinodh/aksharamukha) (Pāḷi → Kannada script):
