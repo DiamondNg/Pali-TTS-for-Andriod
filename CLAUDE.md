@@ -134,9 +134,13 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
 - iOS Apple-voice workarounds found while owner tested (2026-11-05): (a) niggahita — Apple's
   Kannada voice (Soumya) reads word-final anusvara ಂ as "ma" (evaṃ→"evama"); Microsoft voice is
   fine. Owner chose Sri-Lankan "ng": post-URL replace ಂ→ಙ್ (and ṁ→ಙ್). iOS-only; desktop keeps ಂ.
-  Guide Step 5b. (b) iPad mojibake "à²ªà²žà³à²žà²¾" = correct Kannada ಪಞ್ಞಾ shown as Latin-1; iOS
-  "Get Contents of URL" / Show Result mis-decodes text/html (server does send charset=utf-8, Mac
-  is fine). Not a voice problem; delete Show Result, Replace Text coerces to plain text. (c) ṁ
+  Guide Step 5b. (b) iPad mojibake "à²ªà²žà³à²žà²¾" = correct Kannada ಪಞ್ಞಾ decoded as Latin-1 by iOS
+  "Get Contents of URL" (server sends charset=utf-8 but iOS ignores it for text/html; Mac fine).
+  It DOES corrupt the spoken voice (confirmed: iPad speaks literal Kannada fine, but the fetched
+  text is garbled). No pure-Shortcuts text re-decode exists; proxies (allorigins/codetabs) were
+  down/unreliable. FIX (Step 4b, native, verified in Python vs live API, and a no-op on the Mac so
+  one shortcut works on both): URL Encode → Replace %C3%A0→%E0, %C3%A1→%E1, %C2→"" → URL Decode.
+  (Kannada/danda lead byte E0, ṁ/Ṁ lead E1, continuation bytes 0x80-BF → %C2xx.) (c) ṁ
   dot-above leftover after transliteration is always precomposed U+1E41 → single Find "ṁ" catches
   NFC+NFD.
 - macOS right-click Services for the Shortcut (this Mac Mini, 2026-11-05): extension

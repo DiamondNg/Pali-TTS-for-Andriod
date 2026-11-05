@@ -167,11 +167,34 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
        Latin text unchanged and the voice garbles it.
      • "text" still set to "Shortcut Input" -> Steps 2–3 are skipped.
 
+── Step 4b: Repair the text encoding (REQUIRED on iPhone/iPad) ───
+
+  The Aksharamukha reply is sent as UTF-8 but typed "text/html". iOS
+  "Get Contents of URL" then decodes it as Latin-1, so the Kannada comes
+  out as gibberish like "à²ªà²žà³à²žà²¾" and the voice reads nonsense.
+  (The Mac decodes it correctly; this step does NOTHING there, so the
+  same shortcut is safe on both.) Rebuild the bytes with 5 actions:
+
+    1. Add action "URL Encode"  (mode: Encode). Input = "Contents of URL".
+    2. Add "Replace Text", Regular Expression OFF:
+         Find:  %C3%A0     Replace:  %E0
+    3. Add "Replace Text", Regular Expression OFF:
+         Find:  %C3%A1     Replace:  %E1
+    4. Add "Replace Text", Regular Expression OFF:
+         Find:  %C2        Replace:  (leave EMPTY)
+    5. Add another "URL Encode" action and switch its mode to "Decode".
+       Input = the "Updated Text" of step 4.
+
+  Type the percent codes in UPPERCASE (iOS uses %C3, not %c3). The result
+  is now correct Kannada; Steps 5–6 run on it. (Steps 5 onward take their
+  Input from the URL Decode's result / the previous "Updated Text".)
+
 ── Step 5: Fix ññ and the final nasal (niggahita ṃ) ─────────────
 
-  These two "Replace Text" actions run on the KANNADA (the result of
-  "Get Contents of URL"). Regular Expression OFF for both. The first one's
-  Input is "Contents of URL"; the second one's Input is "Updated Text".
+  These "Replace Text" actions run on the KANNADA (on iPhone/iPad, the
+  result of Step 4b's URL Decode; if you skipped 4b, the "Contents of
+  URL"). Regular Expression OFF for all. Each one's Input is the previous
+  action's "Updated Text".
 
   5a. ññ
       The Kannada voice says ಞ್ಞ like "bb" (aññaṃ -> "abbaṃ").
@@ -273,13 +296,11 @@ TROUBLESHOOTING
     The final nasal (anusvara ಂ) is being read as "ma" by Apple's
     Kannada voice. Add Step 5b (ಂ -> ಙ್, the "ng" sound).
 
-  The popup / Quick Look shows gibberish like "à²ªà²žà³à²žà²¾":
-    That is the correct Kannada (ಪಞ್ಞಾ) shown with the wrong text
-    encoding — a known iOS quirk when the reply is typed text/html.
-    It does NOT affect the voice. Remove the "Show Result" action (you
-    don't need the popup) and judge by what you HEAR. Running the reply
-    through the Step 5 "Replace Text" actions also turns it into plain
-    text, which clears the gibberish downstream.
+  Gibberish like "à²ªà²žà³à²žà²¾" — on screen AND in the voice (iPhone/iPad):
+    iOS decoded the UTF-8 reply as Latin-1. This DOES corrupt the voice.
+    Fix = Step 4b (URL Encode -> 3 Replace Text -> URL Decode). Also
+    remove the "Show Result" popup; judge by what you HEAR. (The Mac is
+    not affected and Step 4b is harmless there.)
 
   Not in the Mac right-click (Services) menu:
     Shortcut Details -> "Use as Quick Action" + "Services Menu" ON, and
