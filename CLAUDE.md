@@ -124,7 +124,8 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.
   APP_VERSION in repo = "2.10" (test builds). Owner asked about word highlighting while playing:
   brainstormed only (edge-tts 7.3.1 `boundary="WordBoundary"` gives word times for Microsoft
-  voices; other voices: line-level). Not started.
+  voices; other voices: line-level). Owner dropped it (2026-11-05). iOS Shortcut: not in v2.10
+  Release until owner tests it; then attach guide + iCloud link (owner makes it on the device).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
