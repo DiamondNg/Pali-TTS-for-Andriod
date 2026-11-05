@@ -4,14 +4,14 @@ Read Pāli Aloud — iOS Shortcut (iPhone and iPad)
 Select Pāli text anywhere -> Share -> Read Pali Aloud -> it is spoken.
 
 EASIEST: install the ready-made shortcut, no building needed:
-    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+    https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b
   Open that on your iPhone/iPad, tap "Add Shortcut", then do PART 1 below
   (download the Kannada voice) and open "Speak Text" to pick that voice by
   name. The rest of this file explains how it was built / how to fix it.
 
 What it does: sends the Pāli to the Aksharamukha website, which writes it
 in Kannada letters, then an Apple Kannada voice reads those letters.
-It does the same clean-up as the desktop app: removes quotes, fixes ṁ and
+It does the same clean-up as the desktop app: removes quotes and numbers, fixes ṁ and
 ññ, and turns . ; ! ? into pauses.
 
 Limits (compared with the desktop/Android app):
@@ -153,6 +153,21 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
         Find:          [—–]
         Replace with:  (one space)
 
+  3d. Don't read numbers and references (added in v2.11)
+      Add "Replace Text" (put it just before "Get Contents of URL"):
+        Show More -> Regular Expression: ON,  Case Sensitive: OFF
+        Find (copy the whole line exactly, it is ONE line):
+(?im)^[ \t]*(?:(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?[ \t]?(?:[ivx]{1,4}\.?[ \t])?)?[0-9]+(?:[.:,-][0-9]+)*[.:)]*|[(\[{][^()\[\]{}]*[0-9\x{00B2}\x{00B3}\x{00B9}\x{2070}-\x{2079}][^()\[\]{}]*[)\]}]|\b(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?\s?(?:[ivx]{1,4}\.?\s)?[0-9]+(?:[.:,-][0-9]+)*|[0-9\x{00B2}\x{00B3}\x{00B9}\x{2070}-\x{2079}]+(?:[.:,-][0-9]+)*
+        Replace with:  (one space)
+      (Only plain keyboard letters: \x{00B9} etc. are the small footnote
+       numbers ¹ ² ³, written as codes so they copy safely.)
+      Removes "1." at the start of a line (with its full stop, which the
+      voice would otherwise read before "Evaṃ"), "SN 12.1", "(MN 10)", "[pts 1.1]", "Vin I 3",
+      "D ii 290", footnote marks ¹², and any other number. Without it the
+      Kannada voice reads numbers aloud in Kannada.
+      ⚠ Then check "Get Contents of URL" -> field "text" uses the
+        "Updated Text" of THIS action.
+
 ── Step 4: Convert to Kannada letters ───────────────────────────
 
   Add action "Get Contents of URL".
@@ -291,7 +306,7 @@ SHARING / DISTRIBUTING THIS SHORTCUT
 ════════════════════════════════════════════════════════════════
 
   Easiest (online): share the iCloud link. The owner's ready-made one is
-    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+    https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b
   (Shortcuts -> the "..." -> Share -> Copy iCloud Link makes your own.)
 
   Or hand it over as a FILE (no iCloud link, works offline to transfer):

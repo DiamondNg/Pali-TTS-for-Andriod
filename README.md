@@ -12,7 +12,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 [Releases](https://github.com/DiamondNg/Pali-TTS-for-Andriod/releases) (or the latest
 [Actions](https://github.com/DiamondNg/Pali-TTS-for-Andriod/actions) run → Artifacts).
 **iPhone / iPad:** install the ready-made shortcut —
-[Read Pāli Aloud (iCloud)](https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76),
+[Read Pāli Aloud (iCloud)](https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b),
 then see [`ios/README_iOS_Shortcut.txt`](ios/README_iOS_Shortcut.txt) (download the Kannada voice
 and pick it in Speak Text).
 
@@ -35,7 +35,7 @@ and pick it in Speak Text).
   short lines follow the alternating pattern. A line with Pāli followed by its translation is
   cut where the language changes.
 - Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
-  macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
+  macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed. Numbers and references in Pāli lines (“1.”, “SN 12.1”, “(MN 10)”, “[pts 1.1]”, footnote marks ¹²) are not read; a line that is only a reference is skipped. Translation lines still read their numbers.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
 - Save audio as MP3 to Downloads, or to a folder you choose ("Change folder…").
 - Dark mode; all settings, the window size and dark mode are remembered.

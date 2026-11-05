@@ -309,7 +309,9 @@ def split_segments(text):
     the language of the line one period back: the line before in plain text, two
     lines back when Pāli and translation alternate line by line. A line with both
     (Pāli, then its translation) is cut where the language changes (split_line)."""
-    lines = [ln for ln in text.splitlines() if ln.strip() and not is_section_marker(ln)]
+    # A line that is only a number or a reference ("SN 12.1", "(MN 10)") is skipped
+    lines = [ln for ln in text.splitlines()
+             if ln.strip() and not is_section_marker(ln) and strip_numbers(ln)]
     langs = line_languages(lines)
     segs, pending = [], []
     parts, part_langs = [], []
@@ -341,9 +343,27 @@ def split_segments(text):
         segs.append(("pi", " ".join(pending)))
     return [(lang, " ".join(t.split())) for lang, t in segs]
 
+# References and numbers in Pāli lines ("SN 12.1", "(MN 10)", "[pts 1.1]", "1.",
+# footnote marks ¹²) would be read as Kannada numbers / letters: delete them.
+_NUM = r"[0-9\u00b9\u00b2\u00b3\u2070-\u2079\u0ce6-\u0cef]"
+REF_BRACKET = re.compile(r"[(\[{][^()\[\]{}]*" + _NUM + r"[^()\[\]{}]*[)\]}]")
+# Book abbreviations (SuttaCentral / PTS), only when a number follows
+REF_ABBR = re.compile(r"(?i)\b(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|it|snp|sn?p|vv|pv|thag|thig|"
+                      r"ja|j|vin|vism|mil|ne|pe|kv|vb|vibh|ds|dhs|pp|pts|pj|cp|bv|ap|thi|tha|"
+                      r"pli-tv-[a-z-]+|vol|d|m|s|a|v|p|§)\.?\s?(?:[ivx]{1,4}\.?\s)?" + _NUM + r"+(?:[.:,–-]" + _NUM + r"+)*")
+NUMBER = re.compile(_NUM + r"+(?:[.:,–-]" + _NUM + r"+)*")
+
+def strip_numbers(text):
+    text = REF_BRACKET.sub(" ", text)
+    text = REF_ABBR.sub(" ", text)
+    text = NUMBER.sub(" ", text)
+    text = re.sub(r"^[ \t]*[.:)\]]+", "", text, flags=re.M)  # "1. Evaṃ" → "Evaṃ"
+    text = re.sub(r"[ \t]+([.,;:!?])", r"\1", text)         # "sutaṃ 5." → "sutaṃ."
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
+
 def clean_pali(text):
     # Quotes would make the voice pause (sarīran"ti): delete them, no space
-    return re.sub(r"[\"'“”‘’]", "", text)
+    return strip_numbers(re.sub(r"[\"'“”‘’]", "", text))
 
 def filter_pali_lines(text):
     kept = [t for lang, t in split_segments(text) if lang == "pi"]

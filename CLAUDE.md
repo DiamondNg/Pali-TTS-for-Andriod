@@ -157,7 +157,7 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   Base64 Decode (encoding fix) → Replace ಞ్ಞ→ನ్ನ్ಯ → ಂ→ಙ్ → ṁ→ಙ్ → Speak Text (Kannada, voice by
   name). Speed = Speak Text "Rate" slider. Translations: shortcut is Pāli-only; use iOS Speak
   Selection (Settings→Accessibility→Spoken Content) or a 2nd Speak-Text-only shortcut. Owner's
-  iCloud share link: https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76 (now in
+  iCloud share link (v2.10; v2.11 = c26da845f2504f94a99221619a88631b, with Step 3d): https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76 (now in
   README + guide). Sharing offline = export .shortcut (AirDrop/Files); recipient may need
   Settings→Shortcuts→Allow Sharing Untrusted Shortcuts; still needs internet to RUN (aksharamukha).
   v2.10 Release can bundle 4 platforms: macOS .dmg, Windows .exe, Android .apk (CI), iOS .shortcut
@@ -179,6 +179,14 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   ios/*.shortcut from the tagged commit (`--clobber`; GITHUB_TOKEN is enough to upload);
   auto_release no longer uploads it (avoids double upload). NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
   auto-publish v2.10 once RELEASE_PAT is set.
+- v2.11 on branch `claude/quirky-hawking-ujup2q` (2026-11-05): numbers not read in Pāli.
+  `strip_numbers()` in pali_core (called by `clean_pali` → `to_kannada`, so desktop + Android):
+  deletes bracketed groups with a digit, book abbreviation + number (DN/MN/SN/AN/Dhp/Vin I 3/
+  D ii 290/pts…, case-insensitive), any other number (ASCII, superscript, Kannada digits),
+  leading "1." Lines that are only a reference are dropped in `split_segments`. Translation
+  lines keep numbers (owner can choose). Owner: translations keep numbers (fine). iOS: guide Step 3d =
+  one regex Replace Text before Get Contents of URL (same rules). Owner will update the shortcut,
+  uploaded the new .shortcut (moved to ios/, replaces old) + new iCloud link (in README/guide). Ready for PR.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
