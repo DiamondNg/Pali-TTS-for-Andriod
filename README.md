@@ -12,7 +12,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 [Releases](https://github.com/DiamondNg/Pali-TTS-for-Andriod/releases) (or the latest
 [Actions](https://github.com/DiamondNg/Pali-TTS-for-Andriod/actions) run → Artifacts).
 **iPhone / iPad:** install the ready-made shortcut —
-[Read Pāli Aloud (iCloud)](https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76),
+[Read Pāli Aloud (iCloud)](https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b),
 then see [`ios/README_iOS_Shortcut.txt`](ios/README_iOS_Shortcut.txt) (download the Kannada voice
 and pick it in Speak Text).
 

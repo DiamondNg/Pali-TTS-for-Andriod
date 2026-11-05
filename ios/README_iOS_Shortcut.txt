@@ -4,7 +4,7 @@ Read Pāli Aloud — iOS Shortcut (iPhone and iPad)
 Select Pāli text anywhere -> Share -> Read Pali Aloud -> it is spoken.
 
 EASIEST: install the ready-made shortcut, no building needed:
-    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+    https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b
   Open that on your iPhone/iPad, tap "Add Shortcut", then do PART 1 below
   (download the Kannada voice) and open "Speak Text" to pick that voice by
   name. The rest of this file explains how it was built / how to fix it.
@@ -306,7 +306,7 @@ SHARING / DISTRIBUTING THIS SHORTCUT
 ════════════════════════════════════════════════════════════════
 
   Easiest (online): share the iCloud link. The owner's ready-made one is
-    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+    https://www.icloud.com/shortcuts/c26da845f2504f94a99221619a88631b
   (Shortcuts -> the "..." -> Share -> Copy iCloud Link makes your own.)
 
   Or hand it over as a FILE (no iCloud link, works offline to transfer):
