@@ -84,10 +84,17 @@ tests); a `v*` tag or a published Release attaches them to the Release. The vers
 (tag `v2.10` → "Read Pāli Aloud v2.10.dmg / .exe / .apk" and "2.10" in Help), so the names always
 match the Release.
 
-A v2.10 Release can bundle all four platforms: the macOS **.dmg**, the Windows **.exe**, the
-Android **.apk** (all built by CI), and the iOS **.shortcut** (exported from the Shortcuts app on
-an iPhone/iPad and uploaded to the Release by hand — CI cannot build or sign an iOS Shortcut).
-See `ios/README_iOS_Shortcut.txt` → "Sharing / distributing this shortcut".
+A Release bundles all four platforms: the macOS **.dmg**, the Windows **.exe**, the Android
+**.apk** (all built by CI), and the iOS **.shortcut** (committed at `ios/Read Pāli Aloud.shortcut`,
+since CI cannot build or sign an iOS Shortcut).
+
+**Releases are automatic** (`.github/workflows/auto_release.yml`): when a change lands on `main`
+and `APP_VERSION` in `pali_tts.py` is a version with no Release yet, that Release is published and
+the iOS `.shortcut` is attached; publishing it triggers the three build workflows to attach the
+`.dmg` / `.exe` / `.apk`. So: bump `APP_VERSION`, merge → the whole Release appears. It needs a
+one-time repository secret **`RELEASE_PAT`** (a Personal Access Token with *Contents: read and
+write*) — the built-in token cannot trigger the build workflows. Until that secret exists the
+workflow just skips, and you can still publish a Release by hand as before.
 
 ## Credits and licences
 

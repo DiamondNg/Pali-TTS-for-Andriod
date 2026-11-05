@@ -169,6 +169,14 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   brainstormed only (edge-tts 7.3.1 `boundary="WordBoundary"` gives word times for Microsoft
   voices; other voices: line-level). Owner dropped it (2026-11-05). iOS Shortcut now tested & working
   (see above); v2.10 Release to include the guide + iCloud link + exported .shortcut.
+  Owner's working signed .shortcut (AEA1, signed "anyone") committed at `ios/Read Pāli Aloud.shortcut`.
+  Auto-release added: `.github/workflows/auto_release.yml` — on push to main, if no Release exists
+  for APP_VERSION (tag v<ver>), it publishes the Release (needs secret RELEASE_PAT, a PAT with
+  Contents:write — GITHUB_TOKEN can't trigger the build workflows; skips cleanly if unset), attaches
+  ios/*.shortcut, and the `release: published` event makes build_macos/windows/android attach
+  dmg/exe/apk. Owner chose "release on merge only when APP_VERSION changed". Build workflows
+  unchanged. NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
+  auto-publish v2.10 once RELEASE_PAT is set.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
