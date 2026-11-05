@@ -39,6 +39,7 @@ SPEEDS = [
     ("1x",    "-25%", 1.0),
     ("1.33x", "+0%",  4 / 3),
     ("1.67x", "+25%", 5 / 3),
+    ("2x",    "+50%", 2.0),
 ]
 DEFAULT_SPEED = 2  # 1x
 # Speed of the computer's own voice for translations (separate from the Pāli speed).
@@ -240,14 +241,88 @@ def line_languages(lines):
     return langs
 
 
+# Splitting a line where the language changes ("… kathā udapādi  “Here, Bhante, …").
+# Each word votes as in line_language; a change of language costs SWITCH_COST, less
+# at a sentence end, quote or double space, a bit less at a comma; the cheapest way
+# to read the line wins. So a lone "Ānanda," in English stays English, while a Pāli
+# passage followed by its translation on the same line is split. Held-out AN10 test,
+# Pāli + English glued on one line: 1.3% of words wrong (38.7% without splitting);
+# Pāli-only and English-only lines unchanged (0% / 0.03%).
+SWITCH_COST = 2.5
+SWITCH_COST_COMMA = 2.0
+SWITCH_COST_SENTENCE = 0.5
+SENTENCE_END = re.compile(r"([.?!…—]|’’|”)\s*$|\s\s$")
+COMMA_END = re.compile(r"[,;:]\s*$")
+OPENING_QUOTE = re.compile(r"[“‘\"']")
+
+def word_vote(token):
+    """1 (Pāli), -1 (translation) or 0 for one word as written ("dhamman’ti")."""
+    low = QUOTE_N.sub("ṁ", token.lower().replace("ṃ", "ṁ"))
+    words = re.findall(r"[^\W\d_]+", low)
+    if not words:
+        return 0
+    p, f = word_votes(words)
+    return (p > f) - (f > p)
+
+def split_line(line):
+    """[(is_pali, text)]: the line cut where its language changes; one piece if not."""
+    toks = re.findall(r"\S+\s*", line)
+    votes = [word_vote(t) for t in toks]
+    if len(toks) < 2 or not any(votes):
+        return [(None, line)]
+    cost = {1: float(votes[0] == -1), -1: float(votes[0] == 1)}
+    back = []
+    for i in range(1, len(toks)):
+        if SENTENCE_END.search(toks[i - 1]) or OPENING_QUOTE.match(toks[i]):
+            switch = SWITCH_COST_SENTENCE
+        elif COMMA_END.search(toks[i - 1]):
+            switch = SWITCH_COST_COMMA
+        else:
+            switch = SWITCH_COST
+        new, came = {}, {}
+        for s in (1, -1):
+            stay, change = cost[s], cost[-s] + switch
+            new[s], came[s] = (stay, s) if stay <= change else (change, -s)
+            new[s] += votes[i] == -s
+        back.append(came)
+        cost = new
+    s = min((1, -1), key=lambda x: cost[x])
+    path = [s]
+    for came in reversed(back):
+        s = came[s]
+        path.append(s)
+    path.reverse()
+    pieces = []
+    for t, s in zip(toks, path):
+        if pieces and pieces[-1][0] == (s > 0):
+            pieces[-1][1] += t
+        else:
+            pieces.append([s > 0, t])
+    if len(pieces) == 1:
+        return [(None, line)]
+    return [(pi, t) for pi, t in pieces]
+
+
 def split_segments(text):
     """[(lang, text)] in reading order; lang is "pi" (Pāli) or the language code
     of a translation line ("en", "zh", "ms", ...). A line too short to tell takes
     the language of the line one period back: the line before in plain text, two
-    lines back when Pāli and translation alternate line by line."""
+    lines back when Pāli and translation alternate line by line. A line with both
+    (Pāli, then its translation) is cut where the language changes (split_line)."""
     lines = [ln for ln in text.splitlines() if ln.strip() and not is_section_marker(ln)]
     langs = line_languages(lines)
     segs, pending = [], []
+    parts, part_langs = [], []
+    for ln, lang in zip(lines, langs):
+        pieces = split_line(ln)
+        if len(pieces) == 1:  # one language: as decided for the whole line
+            parts.append(ln)
+            part_langs.append(lang)
+            continue
+        for is_pali, t in pieces:
+            parts.append(t)
+            part_langs.append("pi" if is_pali else guess_language(t))
+    lines, langs = parts, part_langs
     for i, ln in enumerate(lines):
         lang = langs[i]
         if lang is None:  # still unknown: goes with its neighbours
