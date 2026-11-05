@@ -152,13 +152,23 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   not appear until log-out/in (Services menu cached per login). Owner had 3 duplicate copies
   ("iPad", "iPad 1" (the registered one, PK 38), "iPad 2") — delete extras. pbs -update/-flush
   alone didn't refresh the live menu.
+- iOS Shortcut WORKING end-to-end (owner, 2026-11-05). Final recipe (guide rewritten): Receive
+  Text → [pasted text] Replace n+U0303→ñ → Get Contents of URL (source=IASTPali) → Base64 Encode →
+  Base64 Decode (encoding fix) → Replace ಞ్ಞ→ನ్ನ్ಯ → ಂ→ಙ్ → ṁ→ಙ్ → Speak Text (Kannada, voice by
+  name). Speed = Speak Text "Rate" slider. Translations: shortcut is Pāli-only; use iOS Speak
+  Selection (Settings→Accessibility→Spoken Content) or a 2nd Speak-Text-only shortcut. Owner's
+  iCloud share link: https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76 (now in
+  README + guide). Sharing offline = export .shortcut (AirDrop/Files); recipient may need
+  Settings→Shortcuts→Allow Sharing Untrusted Shortcuts; still needs internet to RUN (aksharamukha).
+  v2.10 Release can bundle 4 platforms: macOS .dmg, Windows .exe, Android .apk (CI), iOS .shortcut
+  (exported by hand) or the iCloud link in release notes.
 - v2.10 on branch `claude/happy-goldberg-dld7m0` (2026-11-05): owner released v2.9 but files said
   v2.8 (APP_VERSION not bumped). Now all 3 workflows, on a Release/`v*` tag, set APP_VERSION from
   the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.
   APP_VERSION in repo = "2.10" (test builds). Owner asked about word highlighting while playing:
   brainstormed only (edge-tts 7.3.1 `boundary="WordBoundary"` gives word times for Microsoft
-  voices; other voices: line-level). Owner dropped it (2026-11-05). iOS Shortcut: not in v2.10
-  Release until owner tests it; then attach guide + iCloud link (owner makes it on the device).
+  voices; other voices: line-level). Owner dropped it (2026-11-05). iOS Shortcut now tested & working
+  (see above); v2.10 Release to include the guide + iCloud link + exported .shortcut.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

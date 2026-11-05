@@ -3,6 +3,12 @@ Read Pāli Aloud — iOS Shortcut (iPhone and iPad)
 
 Select Pāli text anywhere -> Share -> Read Pali Aloud -> it is spoken.
 
+EASIEST: install the ready-made shortcut, no building needed:
+    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+  Open that on your iPhone/iPad, tap "Add Shortcut", then do PART 1 below
+  (download the Kannada voice) and open "Speak Text" to pick that voice by
+  name. The rest of this file explains how it was built / how to fix it.
+
 What it does: sends the Pāli to the Aksharamukha website, which writes it
 in Kannada letters, then an Apple Kannada voice reads those letters.
 It does the same clean-up as the desktop app: removes quotes, fixes ṁ and
@@ -230,10 +236,16 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
                "Soumya"). "Default" also works IF a Kannada voice is
                installed and is your default — but picking by name is
                safer. Do this again on each device (see Part 1 note).
-    Rate:      start at the middle; slower = more to the left
+    Rate:      THIS IS THE SPEED. Left = slower, right = faster.
+               Set it where you like; it is remembered.
     Pitch:     middle
 
   Tap Done. The shortcut is saved.
+
+  (To change speed on the fly without editing: add a "Choose from Menu"
+   action near the top with options Slow / Normal / Fast, and put a
+   separate "Speak Text" with a different Rate in each menu branch.
+   Optional — most people just set the Rate slider once.)
 
 ════════════════════════════════════════════════════════════════
 PART 4 — FASTEST FIX FOR AN EXISTING (GARBLED) SHORTCUT
@@ -251,6 +263,64 @@ If you already made a shortcut that only has "Get Contents of URL" and
      (Step 2/3 BEFORE "Get Contents of URL"; Step 5/6 AFTER it), and make
      sure "Get Contents of URL" -> field "text" uses "Updated Text".
   4. Open "Speak Text" and pick the Kannada voice by name (Part 1 note).
+
+════════════════════════════════════════════════════════════════
+SPEED, AND READING TRANSLATIONS (English, etc.)
+════════════════════════════════════════════════════════════════
+
+  Speed: it is the "Rate" slider in the "Speak Text" action
+  (Step 7 / Part 4 step 4). Left = slower, right = faster.
+
+  Translations: this shortcut is Pāli-ONLY. It turns everything into
+  Kannada letters, so English/Chinese lines would come out as nonsense.
+  Re-creating the desktop app's "detect Pāli vs translation and switch
+  voices" is not practical in Shortcuts (that uses a 145,000-word list).
+  Two easy ways to read translations on the device instead:
+
+    • iOS "Speak Selection" (best, no shortcut needed):
+        Settings -> Accessibility -> Spoken Content -> Speak Selection ON.
+      Now selecting ANY text shows a "Speak" button that reads it in the
+      right language and voice. Use it for the English/translation lines,
+      and this shortcut for the Pāli.
+    • Or a second tiny shortcut "Read English aloud" = just one
+      "Speak Text" action (NO website step), voice set to your English
+      voice. Select English -> Share -> that shortcut.
+
+════════════════════════════════════════════════════════════════
+SHARING / DISTRIBUTING THIS SHORTCUT
+════════════════════════════════════════════════════════════════
+
+  Easiest (online): share the iCloud link. The owner's ready-made one is
+    https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76
+  (Shortcuts -> the "..." -> Share -> Copy iCloud Link makes your own.)
+
+  Or hand it over as a FILE (no iCloud link, works offline to transfer):
+
+    1. Open the shortcut -> the "..." (or the Share icon) -> Share Shortcut.
+    2. Choose AirDrop (fully offline, phone-to-phone), or "Save to Files"
+       / Mail to get a ".shortcut" file (also good for a GitHub Release).
+    3. The other person opens the file -> "Add Shortcut".
+
+  If they get "can't import / untrusted shortcut": on THEIR device,
+    Settings -> Shortcuts -> turn on "Allow Sharing Untrusted Shortcuts".
+  That switch only appears after they have run any one shortcut once, so
+  have them run a built-in shortcut first, then import yours.
+
+  ⚠ Shared offline, but it still NEEDS INTERNET to run (the Pāli->Kannada
+    conversion is done by the Aksharamukha website). Only the Kannada
+    VOICE works offline, once it is downloaded. (The macOS and Android
+    apps do the conversion on-device, so those can run fully offline.)
+
+  On each new device the recipient must, once (Part 1):
+    • download the Kannada voice (Settings -> Accessibility ->
+      Spoken Content -> Voices -> Kannada), and
+    • open "Speak Text" and pick that voice by name (the voice id differs
+      per device, so your choice does not carry over).
+
+  For a GitHub Release: export the ".shortcut" as above and upload it as
+  a Release asset next to the macOS .dmg, Windows .exe and Android .apk —
+  the four platforms of one version. (CI cannot build an iOS Shortcut, so
+  this one file is added by hand.)
 
 ════════════════════════════════════════════════════════════════
 HOW TO USE IT
