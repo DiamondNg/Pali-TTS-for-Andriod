@@ -131,6 +131,20 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   README_iOS_Shortcut.txt rewritten: root-cause section, Part 4 fastest fix (source→IASTPali +
   add cleanup), ñ-only NFD step, per-device voice note. Full corrected pipeline verified to match
   to_kannada for NFC and NFD (live API).
+- iOS Apple-voice workarounds found while owner tested (2026-11-05): (a) niggahita — Apple's
+  Kannada voice (Soumya) reads word-final anusvara ಂ as "ma" (evaṃ→"evama"); Microsoft voice is
+  fine. Owner chose Sri-Lankan "ng": post-URL replace ಂ→ಙ್ (and ṁ→ಙ್). iOS-only; desktop keeps ಂ.
+  Guide Step 5b. (b) iPad mojibake "à²ªà²žà³à²žà²¾" = correct Kannada ಪಞ್ಞಾ shown as Latin-1; iOS
+  "Get Contents of URL" / Show Result mis-decodes text/html (server does send charset=utf-8, Mac
+  is fine). Not a voice problem; delete Show Result, Replace Text coerces to plain text. (c) ṁ
+  dot-above leftover after transliteration is always precomposed U+1E41 → single Find "ṁ" catches
+  NFC+NFD.
+- macOS right-click Services for the Shortcut (this Mac Mini, 2026-11-05): extension
+  com.apple.shortcuts.Run-Workflow enabled; the Quick Action registers in `defaults read pbs
+  NSServicesStatus` (ContextMenu/ServicesMenu=1, even hotkey ⌃⇧H) but shows name "(null)" and did
+  not appear until log-out/in (Services menu cached per login). Owner had 3 duplicate copies
+  ("iPad", "iPad 1" (the registered one, PK 38), "iPad 2") — delete extras. pbs -update/-flush
+  alone didn't refresh the live menu.
 - v2.10 on branch `claude/happy-goldberg-dld7m0` (2026-11-05): owner released v2.9 but files said
   v2.8 (APP_VERSION not bumped). Now all 3 workflows, on a Release/`v*` tag, set APP_VERSION from
   the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.

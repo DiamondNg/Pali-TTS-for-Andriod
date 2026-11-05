@@ -167,16 +167,31 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
        Latin text unchanged and the voice garbles it.
      • "text" still set to "Shortcut Input" -> Steps 2–3 are skipped.
 
-── Step 5: Fix ññ ───────────────────────────────────────────────
+── Step 5: Fix ññ and the final nasal (niggahita ṃ) ─────────────
 
-  The Kannada voice says ಞ್ಞ like "bb" (aññaṃ -> "abbaṃ").
-  The teacher chose the spelling ನ್ನ್ಯ instead.
+  These two "Replace Text" actions run on the KANNADA (the result of
+  "Get Contents of URL"). Regular Expression OFF for both. The first one's
+  Input is "Contents of URL"; the second one's Input is "Updated Text".
 
-  Add "Replace Text":
-    Find:          ಞ್ಞ
-    Replace with:  ನ್ನ್ಯ
-    Input:         Contents of URL
-    Regular Expression OFF
+  5a. ññ
+      The Kannada voice says ಞ್ಞ like "bb" (aññaṃ -> "abbaṃ").
+      The teacher chose the spelling ನ್ನ್ಯ instead.
+        Find:          ಞ್ಞ
+        Replace with:  ನ್ನ್ಯ
+
+  5b. niggahita ṃ  ->  "ng"   (Apple-voice workaround, iOS only)
+      Aksharamukha writes niggahita as the anusvara ಂ. Microsoft's
+      Kannada voice (desktop/Android) reads ಂ correctly, but Apple's
+      Kannada voice (Soumya) says a word-final ಂ like "ma" (evaṃ ->
+      "evama"). The owner chose the Sri-Lankan-chanting "ng" sound,
+      which is the Kannada ಙ್ (velar nasal + halant):
+        Find:          ಂ
+        Replace with:  ಙ್
+      Then, in case any ṁ with the dot ABOVE slipped through Step 3b:
+        Find:          ṁ
+        Replace with:  ಙ್
+      (Do NOT do 5b on the desktop app — only the Apple Kannada voice
+       needs it. The Microsoft voice should keep ಂ.)
 
 ── Step 6: Full stops become pauses ─────────────────────────────
 
@@ -251,9 +266,26 @@ TROUBLESHOOTING
     The Aksharamukha website may be down, or no internet. Try later.
 
   Still says "abbaṃ" for aññaṃ:
-    Step 5 must come AFTER "Get Contents of URL", and its Find text
+    Step 5a must come AFTER "Get Contents of URL", and its Find text
     must be the Kannada ಞ್ಞ copied from this page.
 
-  Not in the Share menu:
+  A word ends in "...ma" (evaṃ sounds like "evama"):
+    The final nasal (anusvara ಂ) is being read as "ma" by Apple's
+    Kannada voice. Add Step 5b (ಂ -> ಙ್, the "ng" sound).
+
+  The popup / Quick Look shows gibberish like "à²ªà²žà³à²žà²¾":
+    That is the correct Kannada (ಪಞ್ಞಾ) shown with the wrong text
+    encoding — a known iOS quirk when the reply is typed text/html.
+    It does NOT affect the voice. Remove the "Show Result" action (you
+    don't need the popup) and judge by what you HEAR. Running the reply
+    through the Step 5 "Replace Text" actions also turns it into plain
+    text, which clears the gibberish downstream.
+
+  Not in the Mac right-click (Services) menu:
+    Shortcut Details -> "Use as Quick Action" + "Services Menu" ON, and
+    "Receive Text input". Then LOG OUT and back in (the Services menu is
+    cached per login). Delete any duplicate copies of the shortcut.
+
+  Not in the Share menu (iPhone/iPad):
     Shortcuts -> long-press Read Pali Aloud -> Details ->
     "Show in Share Sheet" ON.
