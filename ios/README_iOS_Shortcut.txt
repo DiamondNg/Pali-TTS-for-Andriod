@@ -16,7 +16,37 @@ Limits (compared with the desktop/Android app):
     reach it).
 
 ════════════════════════════════════════════════════════════════
-PART 1 — CHECK THE KANNADA VOICE  (most common cause of garbled sound)
+WHY THE OLD SHORTCUT SOUNDED GARBLED  (two real causes, both fixed below)
+════════════════════════════════════════════════════════════════
+
+The old shortcut (tested 2026-11-05 on the Mac with "shortcuts run") had
+TWO faults:
+
+  1. In "Get Contents of URL" the field "source" was set to "Pāḷi".
+     "Pāḷi" is NOT a code the Aksharamukha website understands, so the
+     website gave the text BACK UNCHANGED (still in Latin letters). The
+     Kannada voice then tried to read Latin letters -> garbled nonsense.
+     The source MUST be exactly:  IASTPali   (see Step 4).
+
+  2. There was NO clean-up at all: no quote removal, no ññ fix, and — most
+     important — no fix for letters stored as "letter + separate mark".
+     Text copied from Books, Safari, many PDFs and websites stores ñ as
+     "n" + a separate tilde mark. Aksharamukha mis-reads only that one
+     letter (ñ), and ñ/ññ is in a huge share of Pāli words (paññā,
+     suññatā, aññā, ñāṇa, saññā…). So most sentences came out wrong.
+     Step 3 fixes this.
+
+Good news from the test: the Aksharamukha WEBSITE gives EXACTLY the same
+Kannada as the desktop app (pali_core.to_kannada) once "source" is
+IASTPali — so the website itself is fine. Only ñ written as "n + mark"
+needs fixing before sending; every other Pāli letter is read correctly
+whether or not it is stored with a separate mark.
+
+If you already have a shortcut, the FASTEST fix is PART 4 (two edits).
+To build a clean one from scratch, use PART 3.
+
+════════════════════════════════════════════════════════════════
+PART 1 — CHECK THE KANNADA VOICE  (do this first, on each device)
 ════════════════════════════════════════════════════════════════
 
 If no Kannada voice is installed, iOS reads the Kannada letters with
@@ -24,10 +54,17 @@ another voice. That sounds garbled or silent.
 
   1. Settings -> Accessibility -> Spoken Content -> Voices
   2. Look for "Kannada". Tap it and download a voice (tap the cloud
-     icon). Wait until the download finishes.
+     icon). Wait until the download finishes. The voice is usually
+     shown as "Soumya".
   3. If there is no "Kannada" in the list, your iOS version has no
      Kannada voice. Then this shortcut cannot work properly —
      tell Claude which iOS version you have.
+
+Note: the Kannada voice has a DIFFERENT internal name on each device
+(on this Mac its id is "...enhanced.kn-IN.Alpana" but it is shown as
+"Soumya"). So if you copy a shortcut from one device to another, open
+Step 7 again on the new device and pick its Kannada voice — a voice
+chosen on the iPad may not exist on the Mac, and the reverse.
 
 ════════════════════════════════════════════════════════════════
 PART 2 — FIND WHERE IT GOES WRONG  (2 minutes, do this once)
@@ -40,19 +77,23 @@ PART 2 — FIND WHERE IT GOES WRONG  (2 minutes, do this once)
   4. Look at what Quick Look shows:
        • Kannada letters (like ಅನ್ನ್ಯಂ ಧಮ್ಮಂ or ಅಞ್ಞಂ ಧಮ್ಮಂ)
            -> the text is fine; the VOICE is the problem -> Part 1,
-              and in Part 3 step 9 choose the Kannada voice by name.
+              and in Part 3 step 7 choose the Kannada voice by name.
+       • The SAME Latin letters you typed (aññaṃ dhammaṃ), unchanged
+           -> "source" is wrong. It must be IASTPali -> Part 4 / Step 4.
+              (This was the old shortcut's main fault.)
        • English words, an error message, or web page code (< >)
            -> the website failed -> check internet, try again later.
-       • Latin letters with odd marks or boxes
-           -> the input is the problem -> Part 3 step 3.
+       • Kannada letters but with a stray "n" before each ñ-word
+           -> the ñ "n + mark" problem -> Step 3.
   5. Delete the Quick Look action afterwards (long-press it -> Delete).
 
 ════════════════════════════════════════════════════════════════
-PART 3 — BUILD THE IMPROVED SHORTCUT
+PART 3 — BUILD THE SHORTCUT FROM SCRATCH
 ════════════════════════════════════════════════════════════════
 
-Tip: to copy the special text below (Kannada letters, regex), open this
-page on the iPhone/iPad, press and hold on it, Copy, then paste.
+Tip: to copy the special text below (Kannada letters, the ñ with a tilde,
+regex), open this page on the iPhone/iPad, press and hold on it, Copy,
+then paste.
 
 Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
 
@@ -73,29 +114,38 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
     Show More -> Regular Expression: ON
   (Quotes make the voice pause in the middle of "sarīran’ti".)
 
-── Step 3: Fix ṁ and dashes ─────────────────────────────────────
+── Step 3: Fix ñ, ṁ and dashes ──────────────────────────────────
 
-  Add "Replace Text":   Find  ṁ   Replace with  ṃ
-                        (Regular Expression OFF, Case Sensitive ON)
-  Add "Replace Text":   Find  Ṁ   Replace with  Ṃ
-  Add "Replace Text":   Find  [—–]   Replace with  (one space)
-                        Regular Expression ON
+  These three "Replace Text" actions are REQUIRED (not optional). Each
+  one must use the result of the one before it ("Updated Text") —
+  Shortcuts normally links it by itself; check the Input says
+  "Updated Text", not "Shortcut Input".
 
-  Each new Replace Text must use the result of the one before
-  ("Updated Text") — Shortcuts normally links it by itself.
+  3a. Fix ñ stored as "n + mark"  (the big one)
+      Add "Replace Text", Regular Expression ON:
+        Find:          n\x{0303}
+        Replace with:  ñ      (copy this ñ from this page)
+      Add "Replace Text", Regular Expression ON:
+        Find:          N\x{0303}
+        Replace with:  Ñ
+      (\x{0303} is the separate tilde mark. This is the one letter
+       Aksharamukha gets wrong when it is stored that way. All other
+       Pāli letters are fine, so they need no such fix.)
 
-  ONLY if Part 2 showed odd marks/boxes (letters stored as "a + mark"),
-  add one more Replace Text per letter, Regular Expression ON:
-      Find  a\x{0304}   Replace with  ā
-      Find  i\x{0304}   Replace with  ī
-      Find  u\x{0304}   Replace with  ū
-      Find  m\x{0323}   Replace with  ṃ
-      Find  n\x{0307}   Replace with  ṅ
-      Find  n\x{0303}   Replace with  ñ
-      Find  t\x{0323}   Replace with  ṭ
-      Find  d\x{0323}   Replace with  ḍ
-      Find  n\x{0323}   Replace with  ṇ
-      Find  l\x{0323}   Replace with  ḷ
+  3b. Fix ṁ (dot ABOVE) -> ṃ (dot BELOW), both ways it can be stored
+      Add "Replace Text", Regular Expression ON:
+        Find:          ṁ|m\x{0307}
+        Replace with:  ṃ      (copy this ṃ — dot BELOW — from this page)
+      Add "Replace Text", Regular Expression ON:
+        Find:          Ṁ|M\x{0307}
+        Replace with:  Ṃ
+      (Aksharamukha does not read ṁ with the dot above; the desktop app
+       changes it to ṃ too.)
+
+  3c. Dashes -> a space
+      Add "Replace Text", Regular Expression ON:
+        Find:          [—–]
+        Replace with:  (one space)
 
 ── Step 4: Convert to Kannada letters ───────────────────────────
 
@@ -105,14 +155,17 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
       Method:        POST
       Request Body:  Form
       Add 4 fields (Text type):
-        source    IASTPali
+        source    IASTPali      ⚠ EXACTLY this. NOT "Pāḷi", NOT "Pali".
         target    Kannada
         nativize  true
         text      -> tap the value, choose the magic variable
-                     "Updated Text" (result of the LAST Replace Text,
-                     NOT "Shortcut Input")
+                     "Updated Text" (result of the LAST Replace Text in
+                     Step 3, NOT "Shortcut Input")
 
-  ⚠ If "text" still uses "Shortcut Input", steps 2–3 are skipped.
+  ⚠ Two things break this step silently:
+     • "source" anything other than IASTPali -> the website returns your
+       Latin text unchanged and the voice garbles it.
+     • "text" still set to "Shortcut Input" -> Steps 2–3 are skipped.
 
 ── Step 5: Fix ññ ───────────────────────────────────────────────
 
@@ -138,11 +191,31 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
   Show More:
     Wait Until Finished:  ON
     Language:  Kannada (India)
-    Voice:     choose the Kannada voice by name (not "Default")
+    Voice:     choose the Kannada voice by name (it is usually shown as
+               "Soumya"). "Default" also works IF a Kannada voice is
+               installed and is your default — but picking by name is
+               safer. Do this again on each device (see Part 1 note).
     Rate:      start at the middle; slower = more to the left
     Pitch:     middle
 
   Tap Done. The shortcut is saved.
+
+════════════════════════════════════════════════════════════════
+PART 4 — FASTEST FIX FOR AN EXISTING (GARBLED) SHORTCUT
+════════════════════════════════════════════════════════════════
+
+If you already made a shortcut that only has "Get Contents of URL" and
+"Speak Text" (and sounds garbled), you do not have to rebuild it:
+
+  1. Open it in Shortcuts. Tap "Get Contents of URL" -> Show More.
+  2. In the form find the field "source". Change its value from "Pāḷi"
+     (or whatever is there) to exactly:  IASTPali
+     -> This alone makes clear Kannada speech for most text.
+  3. For perfect reading of ñ-words and quotes, add the Step 2, Step 3,
+     Step 5 and Step 6 "Replace Text" actions above, in that order
+     (Step 2/3 BEFORE "Get Contents of URL"; Step 5/6 AFTER it), and make
+     sure "Get Contents of URL" -> field "text" uses "Updated Text".
+  4. Open "Speak Text" and pick the Kannada voice by name (Part 1 note).
 
 ════════════════════════════════════════════════════════════════
 HOW TO USE IT
@@ -165,9 +238,14 @@ HOW TO USE IT
 TROUBLESHOOTING
 ════════════════════════════════════════════════════════════════
 
-  Garbled / foreign-sounding voice:
-    Part 1 (Kannada voice), then step 7 (choose the voice by name).
+  Garbled / foreign-sounding voice, OR it reads your Latin letters:
+    Almost always "source" is not IASTPali -> Part 4 step 2. Then check
+    Part 1 (Kannada voice) and step 7 (choose the voice by name).
     Also check you selected only Pāli, no English.
+
+  Most words fine but ñ-words wrong (a stray "n" sound):
+    Step 3a is missing or its Input is "Shortcut Input" instead of
+    "Updated Text".
 
   "The operation couldn't be completed" or blank:
     The Aksharamukha website may be down, or no internet. Try later.

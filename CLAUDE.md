@@ -119,6 +119,18 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   rewritten: Kannada voice check, Quick Look diagnosis, Replace Text steps = desktop clean-up
   (quotes, ṁ, dashes, optional NFD fixes, ಞ್ಞ→ನ್ನ್ಯ, [.;!?]→।), Speak Text voice by name. Untested
   (owner reported garbled voice with the old recipe; cause not yet known).
+- iOS garble diagnosed (2026-11-05, on this Mac): owner's two synced shortcuts ("Read Pāli
+  Aloud iPad" 4 actions, "Read Pāli Aloud" 3) had Get Contents of URL `source="Pāḷi"` (invalid
+  scheme → Aksharamukha returns the Latin UNCHANGED → Kannada voice reads Latin = garble) and NO
+  clean-up. Website output == pali_core.to_kannada once source=IASTPali (verified live). Only ñ
+  (n+U+0303 combining tilde) mis-transliterates when decomposed — every other Pāli letter is fine
+  decomposed, so the NFD fix is just ñ/Ñ (not a 24-letter table); ṁ (dot-above, incl. m+U+0307)
+  still needs →ṃ. `shortcuts run "Read Pāli Aloud iPad"` returned the Latin input unchanged (NFD
+  run exit 1: hard-coded voice `com.apple.voice.compact.kn-IN.Alpana` absent on Mac; Mac has
+  `...enhanced.kn-IN.Alpana`, shown as "Soumya" — voice id differs per device, so pick by name).
+  README_iOS_Shortcut.txt rewritten: root-cause section, Part 4 fastest fix (source→IASTPali +
+  add cleanup), ñ-only NFD step, per-device voice note. Full corrected pipeline verified to match
+  to_kannada for NFC and NFD (live API).
 - v2.10 on branch `claude/happy-goldberg-dld7m0` (2026-11-05): owner released v2.9 but files said
   v2.8 (APP_VERSION not bumped). Now all 3 workflows, on a Release/`v*` tag, set APP_VERSION from
   the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.

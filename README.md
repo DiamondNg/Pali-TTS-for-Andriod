@@ -19,7 +19,7 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 | **macOS** 11+ (Apple Silicon), 10.15+ (Intel) | Working (v2.x, tested by the teacher) | Select text → **Shift‑Cmd‑Y**, or right‑click → Services → *Read Pali Aloud*; or open the app and paste |
 | **Windows** 10/11 | Working (v2.4+, tested by the owner) | Tray app: select text → **Ctrl+Shift+Y**, or the floating **▶ Read Pāli** button; or open the window and paste |
 | **Android** | Old prototype (Kivy) | `android/` |
-| **iOS** | Shortcuts recipe | `ios/README_iOS_Shortcut.txt` |
+| **iOS** (iPhone / iPad) | Shortcuts recipe (tested & fixed 2026-11-05) | `ios/README_iOS_Shortcut.txt` |
 
 ## Features (macOS and Windows)
 
