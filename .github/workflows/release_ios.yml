@@ -1,0 +1,38 @@
+name: Attach iOS Shortcut to Release
+
+# Every published Release (automatic or made on the GitHub website) gets
+# ios/*.shortcut, like the build workflows attach .dmg/.exe/.apk.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the Shortcut to (e.g. v2.10)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Upload the .shortcut
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          shopt -s nullglob
+          files=(ios/*.shortcut)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::warning::No ios/*.shortcut in $TAG — nothing to attach."
+            exit 0
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber
+          gh release view "$TAG" --json assets --jq '.assets[].name'

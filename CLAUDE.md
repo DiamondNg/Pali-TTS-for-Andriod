@@ -175,7 +175,9 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   Contents:write — GITHUB_TOKEN can't trigger the build workflows; skips cleanly if unset), attaches
   ios/*.shortcut, and the `release: published` event makes build_macos/windows/android attach
   dmg/exe/apk. Owner chose "release on merge only when APP_VERSION changed". Build workflows
-  unchanged. NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
+  unchanged. `release_ios.yml` (2026-11-05): on every `release: published` (auto or by hand) attaches
+  ios/*.shortcut from the tagged commit (`--clobber`; GITHUB_TOKEN is enough to upload);
+  auto_release no longer uploads it (avoids double upload). NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
   auto-publish v2.10 once RELEASE_PAT is set.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).

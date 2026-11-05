@@ -90,11 +90,12 @@ since CI cannot build or sign an iOS Shortcut).
 
 **Releases are automatic** (`.github/workflows/auto_release.yml`): when a change lands on `main`
 and `APP_VERSION` in `pali_tts.py` is a version with no Release yet, that Release is published and
-the iOS `.shortcut` is attached; publishing it triggers the three build workflows to attach the
-`.dmg` / `.exe` / `.apk`. So: bump `APP_VERSION`, merge → the whole Release appears. It needs a
+publishing it triggers the three build workflows to attach the `.dmg` / `.exe` / `.apk`, and
+`release_ios.yml` to attach the iOS `.shortcut`. So: bump `APP_VERSION`, merge → the whole Release appears. It needs a
 one-time repository secret **`RELEASE_PAT`** (a Personal Access Token with *Contents: read and
 write*) — the built-in token cannot trigger the build workflows. Until that secret exists the
-workflow just skips, and you can still publish a Release by hand as before.
+workflow just skips, and you can still publish a Release by hand as before: a Release made on the
+GitHub website gets all four files too (the `.shortcut` from `ios/` in the tagged commit).
 
 ## Credits and licences
 
