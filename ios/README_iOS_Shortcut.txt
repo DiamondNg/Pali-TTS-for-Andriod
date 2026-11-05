@@ -170,29 +170,26 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
 ── Step 4b: Repair the text encoding (REQUIRED on iPhone/iPad) ───
 
   The Aksharamukha reply is sent as UTF-8 but typed "text/html". iOS
-  "Get Contents of URL" then decodes it as Latin-1, so the Kannada comes
-  out as gibberish like "à²ªà²žà³à²žà²¾" and the voice reads nonsense.
-  (The Mac decodes it correctly; this step does NOTHING there, so the
-  same shortcut is safe on both.) Rebuild the bytes with 5 actions:
+  "Get Contents of URL" then re-decodes it as Windows-1252, so the Kannada
+  comes out as gibberish (e.g. "à²ªà²žà³à²žà²¾") and the voice reads
+  nonsense. The Mac does not have this bug. Fix it with TWO actions that
+  round-trip the raw bytes (Get Contents of URL keeps the real bytes;
+  Base64 reads them straight back as UTF-8):
 
-    1. Add action "URL Encode"  (mode: Encode). Input = "Contents of URL".
-    2. Add "Replace Text", Regular Expression OFF:
-         Find:  %C3%A0     Replace:  %E0
-    3. Add "Replace Text", Regular Expression OFF:
-         Find:  %C3%A1     Replace:  %E1
-    4. Add "Replace Text", Regular Expression OFF:
-         Find:  %C2        Replace:  (leave EMPTY)
-    5. Add another "URL Encode" action and switch its mode to "Decode".
-       Input = the "Updated Text" of step 4.
+    1. Add action "Base64 Encode"  (mode: Encode). Input = "Contents of URL".
+    2. Add another "Base64 Encode" action and switch its mode to "Decode".
+       Input = the "Base64 Encoded" result of step 1.
 
-  Type the percent codes in UPPERCASE (iOS uses %C3, not %c3). The result
-  is now correct Kannada; Steps 5–6 run on it. (Steps 5 onward take their
-  Input from the URL Decode's result / the previous "Updated Text".)
+  The result of step 2 is correct Kannada; Steps 5–6 run on it. This is a
+  no-op on the Mac (it round-trips correct text), so the SAME shortcut is
+  safe on both. Note: both actions are labelled "Base64 Encoded" in the
+  variable list — Steps 5 onward must take the output of the DECODE action
+  (step 2, the line directly above). Use "Select Variable" and tap it.
 
 ── Step 5: Fix ññ and the final nasal (niggahita ṃ) ─────────────
 
   These "Replace Text" actions run on the KANNADA (on iPhone/iPad, the
-  result of Step 4b's URL Decode; if you skipped 4b, the "Contents of
+  result of Step 4b's Base64 Decode; if you skipped 4b, the "Contents of
   URL"). Regular Expression OFF for all. Each one's Input is the previous
   action's "Updated Text".
 
@@ -297,10 +294,10 @@ TROUBLESHOOTING
     Kannada voice. Add Step 5b (ಂ -> ಙ್, the "ng" sound).
 
   Gibberish like "à²ªà²žà³à²žà²¾" — on screen AND in the voice (iPhone/iPad):
-    iOS decoded the UTF-8 reply as Latin-1. This DOES corrupt the voice.
-    Fix = Step 4b (URL Encode -> 3 Replace Text -> URL Decode). Also
-    remove the "Show Result" popup; judge by what you HEAR. (The Mac is
-    not affected and Step 4b is harmless there.)
+    iOS decoded the UTF-8 reply as Windows-1252. This DOES corrupt the
+    voice. Fix = Step 4b (Base64 Encode -> Base64 Decode). Also remove the
+    "Show Result" popup; judge by what you HEAR. (The Mac is not affected
+    and Step 4b is harmless there.)
 
   Not in the Mac right-click (Services) menu:
     Shortcut Details -> "Use as Quick Action" + "Services Menu" ON, and

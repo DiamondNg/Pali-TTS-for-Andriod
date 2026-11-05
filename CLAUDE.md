@@ -137,10 +137,13 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   Guide Step 5b. (b) iPad mojibake "à²ªà²žà³à²žà²¾" = correct Kannada ಪಞ್ಞಾ decoded as Latin-1 by iOS
   "Get Contents of URL" (server sends charset=utf-8 but iOS ignores it for text/html; Mac fine).
   It DOES corrupt the spoken voice (confirmed: iPad speaks literal Kannada fine, but the fetched
-  text is garbled). No pure-Shortcuts text re-decode exists; proxies (allorigins/codetabs) were
-  down/unreliable. FIX (Step 4b, native, verified in Python vs live API, and a no-op on the Mac so
-  one shortcut works on both): URL Encode → Replace %C3%A0→%E0, %C3%A1→%E1, %C2→"" → URL Decode.
-  (Kannada/danda lead byte E0, ṁ/Ṁ lead E1, continuation bytes 0x80-BF → %C2xx.) (c) ṁ
+  text is garbled). Decode is actually Windows-1252 (byte 0x82→‚ etc.), so a URL-encode/%-strip
+  repair needs 18 extra replaces (common Kannada letters hit cp1252 specials) — impractical;
+  proxies (allorigins /get) down; `shortcuts sign` rejects hand-built plists (even minimal) so no
+  importable file. FIX (Step 4b, 2 actions, verified: owner's Base64 of "Contents of URL" =
+  4LKq4LKe4LON4LKe4LK+ = exact UTF-8 of ಪಞ್ಞಾ): Base64 Encode → Base64 Decode. "Get Contents of
+  URL" keeps the raw response bytes; Base64 serializes them before the text decode and reads them
+  back as UTF-8. No-op on the Mac, so one shortcut works on both. (c) ṁ
   dot-above leftover after transliteration is always precomposed U+1E41 → single Find "ṁ" catches
   NFC+NFD.
 - macOS right-click Services for the Shortcut (this Mac Mini, 2026-11-05): extension
