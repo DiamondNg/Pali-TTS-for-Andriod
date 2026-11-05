@@ -157,9 +157,12 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
       Add "Replace Text" (put it just before "Get Contents of URL"):
         Show More -> Regular Expression: ON,  Case Sensitive: OFF
         Find (copy the whole line exactly, it is ONE line):
-(?i)[(\[{][^()\[\]{}]*[0-9¹²³⁰-⁹][^()\[\]{}]*[)\]}]|\b(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?\s?(?:[ivx]{1,4}\.?\s)?\d+(?:[.:,-]\d+)*|[0-9¹²³⁰-⁹]+(?:[.:,-][0-9]+)*
+(?im)^[ \t]*(?:(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?[ \t]?(?:[ivx]{1,4}\.?[ \t])?)?[0-9]+(?:[.:,-][0-9]+)*[.:)]*|[(\[{][^()\[\]{}]*[0-9\x{00B2}\x{00B3}\x{00B9}\x{2070}-\x{2079}][^()\[\]{}]*[)\]}]|\b(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?\s?(?:[ivx]{1,4}\.?\s)?[0-9]+(?:[.:,-][0-9]+)*|[0-9\x{00B2}\x{00B3}\x{00B9}\x{2070}-\x{2079}]+(?:[.:,-][0-9]+)*
         Replace with:  (one space)
-      Removes "1.", "SN 12.1", "(MN 10)", "[pts 1.1]", "Vin I 3",
+      (Only plain keyboard letters: \x{00B9} etc. are the small footnote
+       numbers ¹ ² ³, written as codes so they copy safely.)
+      Removes "1." at the start of a line (with its full stop, which the
+      voice would otherwise read before "Evaṃ"), "SN 12.1", "(MN 10)", "[pts 1.1]", "Vin I 3",
       "D ii 290", footnote marks ¹², and any other number. Without it the
       Kannada voice reads numbers aloud in Kannada.
       ⚠ Then check "Get Contents of URL" -> field "text" uses the
