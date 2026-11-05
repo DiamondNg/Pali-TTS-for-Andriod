@@ -179,6 +179,12 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   ios/*.shortcut from the tagged commit (`--clobber`; GITHUB_TOKEN is enough to upload);
   auto_release no longer uploads it (avoids double upload). NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
   auto-publish v2.10 once RELEASE_PAT is set.
+- v2.11 on branch `claude/quirky-hawking-ujup2q` (2026-11-05): numbers not read in Pāli.
+  `strip_numbers()` in pali_core (called by `clean_pali` → `to_kannada`, so desktop + Android):
+  deletes bracketed groups with a digit, book abbreviation + number (DN/MN/SN/AN/Dhp/Vin I 3/
+  D ii 290/pts…, case-insensitive), any other number (ASCII, superscript, Kannada digits),
+  leading "1." Lines that are only a reference are dropped in `split_segments`. Translation
+  lines keep numbers (owner can choose). iOS Shortcut not changed (could add a regex Replace).
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

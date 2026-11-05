@@ -35,7 +35,7 @@ and pick it in Speak Text).
   short lines follow the alternating pattern. A line with Pāli followed by its translation is
   cut where the language changes.
 - Pāḷi voice: Male / Female · Microsoft (online); **Male · Piper (offline**, bundled; Mac needs
-  macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed.
+  macOS 13+); on Mac also **Female · Soumya (offline**, the Mac's own Kannada voice). ññ is spelled the way the teacher chose (ನ್ನ್ಯ); quotes are removed. Numbers and references in Pāli lines (“1.”, “SN 12.1”, “(MN 10)”, “[pts 1.1]”, footnote marks ¹²) are not read; a line that is only a reference is skipped. Translation lines still read their numbers.
 - Play / Pause / Resume / Stop, Space = play/pause, elapsed/total time.
 - Save audio as MP3 to Downloads, or to a folder you choose ("Change folder…").
 - Dark mode; all settings, the window size and dark mode are remembered.
