@@ -11,7 +11,7 @@ EASIEST: install the ready-made shortcut, no building needed:
 
 What it does: sends the Pāli to the Aksharamukha website, which writes it
 in Kannada letters, then an Apple Kannada voice reads those letters.
-It does the same clean-up as the desktop app: removes quotes, fixes ṁ and
+It does the same clean-up as the desktop app: removes quotes and numbers, fixes ṁ and
 ññ, and turns . ; ! ? into pauses.
 
 Limits (compared with the desktop/Android app):
@@ -152,6 +152,18 @@ Open Shortcuts -> tap + (top right). Name it:  Read Pali Aloud
       Add "Replace Text", Regular Expression ON:
         Find:          [—–]
         Replace with:  (one space)
+
+  3d. Don't read numbers and references (added in v2.11)
+      Add "Replace Text" (put it just before "Get Contents of URL"):
+        Show More -> Regular Expression: ON,  Case Sensitive: OFF
+        Find (copy the whole line exactly, it is ONE line):
+(?i)[(\[{][^()\[\]{}]*[0-9¹²³⁰-⁹][^()\[\]{}]*[)\]}]|\b(?:dn|mn|sn|an|kp|khp|dhp|ud|iti|snp|vv|pv|thag|thig|ja|vin|vism|mil|pts|d|m|s|a)\.?\s?(?:[ivx]{1,4}\.?\s)?\d+(?:[.:,-]\d+)*|[0-9¹²³⁰-⁹]+(?:[.:,-][0-9]+)*
+        Replace with:  (one space)
+      Removes "1.", "SN 12.1", "(MN 10)", "[pts 1.1]", "Vin I 3",
+      "D ii 290", footnote marks ¹², and any other number. Without it the
+      Kannada voice reads numbers aloud in Kannada.
+      ⚠ Then check "Get Contents of URL" -> field "text" uses the
+        "Updated Text" of THIS action.
 
 ── Step 4: Convert to Kannada letters ───────────────────────────
 

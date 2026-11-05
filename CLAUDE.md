@@ -184,7 +184,9 @@ Owner's rule (2026-11-05): update README.md in every branch that will become a P
   deletes bracketed groups with a digit, book abbreviation + number (DN/MN/SN/AN/Dhp/Vin I 3/
   D ii 290/pts…, case-insensitive), any other number (ASCII, superscript, Kannada digits),
   leading "1." Lines that are only a reference are dropped in `split_segments`. Translation
-  lines keep numbers (owner can choose). iOS Shortcut not changed (could add a regex Replace).
+  lines keep numbers (owner can choose). Owner: translations keep numbers (fine). iOS: guide Step 3d =
+  one regex Replace Text before Get Contents of URL (same rules). Owner will update the shortcut,
+  upload the new .shortcut (+ maybe new iCloud link) to this branch BEFORE the PR, so v2.11 ships it.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
