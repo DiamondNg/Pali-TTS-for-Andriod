@@ -8,9 +8,13 @@ Reads Pāḷi text aloud. Pāḷi in Roman script (IAST) is converted to Kannada
 offline by the Piper Kannada voice ([micahchoo/piper-kn](https://huggingface.co/micahchoo/piper-kn)) or the Mac's Soumya. Lines in
 other languages (English, Chinese, Malay…) can be read by the computer's own voices.
 
-**Current version: 2.6** — download the installers from
+**Current version: 2.10** — download the installers from
 [Releases](https://github.com/DiamondNg/Pali-TTS-for-Andriod/releases) (or the latest
 [Actions](https://github.com/DiamondNg/Pali-TTS-for-Andriod/actions) run → Artifacts).
+**iPhone / iPad:** install the ready-made shortcut —
+[Read Pāli Aloud (iCloud)](https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76),
+then see [`ios/README_iOS_Shortcut.txt`](ios/README_iOS_Shortcut.txt) (download the Kannada voice
+and pick it in Speak Text).
 
 ## Status
 
@@ -18,8 +22,8 @@ other languages (English, Chinese, Malay…) can be read by the computer's own v
 |----------|-------|----------------|
 | **macOS** 11+ (Apple Silicon), 10.15+ (Intel) | Working (v2.x, tested by the teacher) | Select text → **Shift‑Cmd‑Y**, or right‑click → Services → *Read Pali Aloud*; or open the app and paste |
 | **Windows** 10/11 | Working (v2.4+, tested by the owner) | Tray app: select text → **Ctrl+Shift+Y**, or the floating **▶ Read Pāli** button; or open the window and paste |
-| **Android** | Old prototype (Kivy) | `android/` |
-| **iOS** | Shortcuts recipe | `ios/README_iOS_Shortcut.txt` |
+| **Android** | App (Kotlin + Chaquopy); APK from Releases/CI | `android/` |
+| **iOS** (iPhone / iPad) | Working Shortcut (v2.10, tested by owner 2026-11-05) | Select Pāḷi → Share → *Read Pali Aloud*; or right-click → Services on Mac. Guide + `.shortcut`: `ios/` |
 
 ## Features (macOS and Windows)
 
@@ -67,7 +71,7 @@ tools/offline_voices/        offline Kannada voice test kit (Mac)
 .github/scripts/             CI helpers: GUI tests, Piper model download (Hugging Face), slimming
 tools/                       icon maker, other tools
 android/                     Android app (Kotlin + Chaquopy; MP3 via LAME, android/app/src/main/cpp)
-ios/                         early iOS Shortcut
+ios/                         iOS Shortcut guide (README_iOS_Shortcut.txt) + exported .shortcut
 .github/workflows/           builds and tests: build_macos.yml (DMG), build_windows.yml (installer),
                              build_android.yml (APK)
 ```
@@ -76,7 +80,22 @@ ios/                         early iOS Shortcut
 
 GitHub Actions builds everything: a push builds the DMG and the Windows installer (with automatic
 tests); a `v*` tag or a published Release attaches them to the Release. The version is
-`APP_VERSION` in `pali_tts.py`.
+`APP_VERSION` in `pali_tts.py`; for a Release the builds take the version from the Release tag
+(tag `v2.10` → "Read Pāli Aloud v2.10.dmg / .exe / .apk" and "2.10" in Help), so the names always
+match the Release.
+
+A Release bundles all four platforms: the macOS **.dmg**, the Windows **.exe**, the Android
+**.apk** (all built by CI), and the iOS **.shortcut** (committed at `ios/Read Pāli Aloud.shortcut`,
+since CI cannot build or sign an iOS Shortcut).
+
+**Releases are automatic** (`.github/workflows/auto_release.yml`): when a change lands on `main`
+and `APP_VERSION` in `pali_tts.py` is a version with no Release yet, that Release is published and
+publishing it triggers the three build workflows to attach the `.dmg` / `.exe` / `.apk`, and
+`release_ios.yml` to attach the iOS `.shortcut`. So: bump `APP_VERSION`, merge → the whole Release appears. It needs a
+one-time repository secret **`RELEASE_PAT`** (a Personal Access Token with *Contents: read and
+write*) — the built-in token cannot trigger the build workflows. Until that secret exists the
+workflow just skips, and you can still publish a Release by hand as before: a Release made on the
+GitHub website gets all four files too (the `.shortcut` from `ios/` in the tagged commit).
 
 ## Credits and licences
 

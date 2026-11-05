@@ -6,6 +6,7 @@ Owner is new to GitHub: give very step-by-step instructions, use the GitHub webs
 keep answers short, direct, with a confidence score; brainstorm before big changes.
 Owner's rule: whenever starting a new chat would save tokens, say so, and update this file first
 (so the new chat can continue from it).
+Owner's rule (2026-11-05): update README.md in every branch that will become a PR.
 
 ## Status (2026-11-04)
 - v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
@@ -114,6 +115,70 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   from there (no copy/paste). TPR (bksubhuti/tipitaka-pali-reader, Flutter) reads per sentence from
   its ePitaka database (Pāli + translations with language codes: no detection needed), Pāli →
   Kannada/Sinhala/Devanagari, phone TTS. Not started; floating button only while playing (later).
+- iOS (2026-11-04): owner chose option B (no native app: $99/yr, App Store vs AGPL/GPL). `ios/README_iOS_Shortcut.txt`
+  rewritten: Kannada voice check, Quick Look diagnosis, Replace Text steps = desktop clean-up
+  (quotes, ṁ, dashes, optional NFD fixes, ಞ್ಞ→ನ್ನ್ಯ, [.;!?]→।), Speak Text voice by name. Untested
+  (owner reported garbled voice with the old recipe; cause not yet known).
+- iOS garble diagnosed (2026-11-05, on this Mac): owner's two synced shortcuts ("Read Pāli
+  Aloud iPad" 4 actions, "Read Pāli Aloud" 3) had Get Contents of URL `source="Pāḷi"` (invalid
+  scheme → Aksharamukha returns the Latin UNCHANGED → Kannada voice reads Latin = garble) and NO
+  clean-up. Website output == pali_core.to_kannada once source=IASTPali (verified live). Only ñ
+  (n+U+0303 combining tilde) mis-transliterates when decomposed — every other Pāli letter is fine
+  decomposed, so the NFD fix is just ñ/Ñ (not a 24-letter table); ṁ (dot-above, incl. m+U+0307)
+  still needs →ṃ. `shortcuts run "Read Pāli Aloud iPad"` returned the Latin input unchanged (NFD
+  run exit 1: hard-coded voice `com.apple.voice.compact.kn-IN.Alpana` absent on Mac; Mac has
+  `...enhanced.kn-IN.Alpana`, shown as "Soumya" — voice id differs per device, so pick by name).
+  README_iOS_Shortcut.txt rewritten: root-cause section, Part 4 fastest fix (source→IASTPali +
+  add cleanup), ñ-only NFD step, per-device voice note. Full corrected pipeline verified to match
+  to_kannada for NFC and NFD (live API).
+- iOS Apple-voice workarounds found while owner tested (2026-11-05): (a) niggahita — Apple's
+  Kannada voice (Soumya) reads word-final anusvara ಂ as "ma" (evaṃ→"evama"); Microsoft voice is
+  fine. Owner chose Sri-Lankan "ng": post-URL replace ಂ→ಙ್ (and ṁ→ಙ್). iOS-only; desktop keeps ಂ.
+  Guide Step 5b. (b) iPad mojibake "à²ªà²žà³à²žà²¾" = correct Kannada ಪಞ್ಞಾ decoded as Latin-1 by iOS
+  "Get Contents of URL" (server sends charset=utf-8 but iOS ignores it for text/html; Mac fine).
+  It DOES corrupt the spoken voice (confirmed: iPad speaks literal Kannada fine, but the fetched
+  text is garbled). Decode is actually Windows-1252 (byte 0x82→‚ etc.), so a URL-encode/%-strip
+  repair needs 18 extra replaces (common Kannada letters hit cp1252 specials) — impractical;
+  proxies (allorigins /get) down; `shortcuts sign` rejects hand-built plists (even minimal) so no
+  importable file. FIX (Step 4b, 2 actions, verified: owner's Base64 of "Contents of URL" =
+  4LKq4LKe4LON4LKe4LK+ = exact UTF-8 of ಪಞ್ಞಾ): Base64 Encode → Base64 Decode. "Get Contents of
+  URL" keeps the raw response bytes; Base64 serializes them before the text decode and reads them
+  back as UTF-8. No-op on the Mac, so one shortcut works on both. (c) ṁ
+  dot-above leftover after transliteration is always precomposed U+1E41 → single Find "ṁ" catches
+  NFC+NFD.
+- macOS right-click Services for the Shortcut (this Mac Mini, 2026-11-05): extension
+  com.apple.shortcuts.Run-Workflow enabled; the Quick Action registers in `defaults read pbs
+  NSServicesStatus` (ContextMenu/ServicesMenu=1, even hotkey ⌃⇧H) but shows name "(null)" and did
+  not appear until log-out/in (Services menu cached per login). Owner had 3 duplicate copies
+  ("iPad", "iPad 1" (the registered one, PK 38), "iPad 2") — delete extras. pbs -update/-flush
+  alone didn't refresh the live menu.
+- iOS Shortcut WORKING end-to-end (owner, 2026-11-05). Final recipe (guide rewritten): Receive
+  Text → [pasted text] Replace n+U0303→ñ → Get Contents of URL (source=IASTPali) → Base64 Encode →
+  Base64 Decode (encoding fix) → Replace ಞ్ಞ→ನ్ನ్ಯ → ಂ→ಙ్ → ṁ→ಙ్ → Speak Text (Kannada, voice by
+  name). Speed = Speak Text "Rate" slider. Translations: shortcut is Pāli-only; use iOS Speak
+  Selection (Settings→Accessibility→Spoken Content) or a 2nd Speak-Text-only shortcut. Owner's
+  iCloud share link: https://www.icloud.com/shortcuts/2997ad258cce49daaa635fb4d4fc0c76 (now in
+  README + guide). Sharing offline = export .shortcut (AirDrop/Files); recipient may need
+  Settings→Shortcuts→Allow Sharing Untrusted Shortcuts; still needs internet to RUN (aksharamukha).
+  v2.10 Release can bundle 4 platforms: macOS .dmg, Windows .exe, Android .apk (CI), iOS .shortcut
+  (exported by hand) or the iCloud link in release notes.
+- v2.10 on branch `claude/happy-goldberg-dld7m0` (2026-11-05): owner released v2.9 but files said
+  v2.8 (APP_VERSION not bumped). Now all 3 workflows, on a Release/`v*` tag, set APP_VERSION from
+  the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.
+  APP_VERSION in repo = "2.10" (test builds). Owner asked about word highlighting while playing:
+  brainstormed only (edge-tts 7.3.1 `boundary="WordBoundary"` gives word times for Microsoft
+  voices; other voices: line-level). Owner dropped it (2026-11-05). iOS Shortcut now tested & working
+  (see above); v2.10 Release to include the guide + iCloud link + exported .shortcut.
+  Owner's working signed .shortcut (AEA1, signed "anyone") committed at `ios/Read Pāli Aloud.shortcut`.
+  Auto-release added: `.github/workflows/auto_release.yml` — on push to main, if no Release exists
+  for APP_VERSION (tag v<ver>), it publishes the Release (needs secret RELEASE_PAT, a PAT with
+  Contents:write — GITHUB_TOKEN can't trigger the build workflows; skips cleanly if unset), attaches
+  ios/*.shortcut, and the `release: published` event makes build_macos/windows/android attach
+  dmg/exe/apk. Owner chose "release on merge only when APP_VERSION changed". Build workflows
+  unchanged. `release_ios.yml` (2026-11-05): on every `release: published` (auto or by hand) attaches
+  ios/*.shortcut from the tagged commit (`--clobber`; GITHUB_TOKEN is enough to upload);
+  auto_release no longer uploads it (avoids double upload). NOTE: merging this branch (pali_tts.py already at 2.10, no v2.10 Release yet) will
+  auto-publish v2.10 once RELEASE_PAT is set.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;
