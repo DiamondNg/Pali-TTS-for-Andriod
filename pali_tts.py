@@ -491,7 +491,7 @@ def fmt_time(seconds):
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
 MUTED = "#808080"  # secondary text: readable on light and dark backgrounds
-APP_VERSION = "2.8"
+APP_VERSION = "2.10"
 # Shortcut that opens the window with the selected text (set by the installers)
 SHORTCUT = "Cmd+Shift+Y" if IS_MAC else "Ctrl+Shift+Y"
 

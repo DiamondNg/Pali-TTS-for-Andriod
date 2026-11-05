@@ -6,6 +6,7 @@ Owner is new to GitHub: give very step-by-step instructions, use the GitHub webs
 keep answers short, direct, with a confidence score; brainstorm before big changes.
 Owner's rule: whenever starting a new chat would save tokens, say so, and update this file first
 (so the new chat can continue from it).
+Owner's rule (2026-11-05): update README.md in every branch that will become a PR.
 
 ## Status (2026-11-04)
 - v2.1 merged (PR #5). v2.2 on branch `claude/wonderful-babbage-9my24n` (no PR yet): ññ fixed to
@@ -118,6 +119,12 @@ Owner's rule: whenever starting a new chat would save tokens, say so, and update
   rewritten: Kannada voice check, Quick Look diagnosis, Replace Text steps = desktop clean-up
   (quotes, ṁ, dashes, optional NFD fixes, ಞ್ಞ→ನ್ನ್ಯ, [.;!?]→।), Speak Text voice by name. Untested
   (owner reported garbled voice with the old recipe; cause not yet known).
+- v2.10 on branch `claude/happy-goldberg-dld7m0` (2026-11-05): owner released v2.9 but files said
+  v2.8 (APP_VERSION not bumped). Now all 3 workflows, on a Release/`v*` tag, set APP_VERSION from
+  the tag (step after checkout, `sed -i.bak`, only if tag like v2.10) → names always = Release.
+  APP_VERSION in repo = "2.10" (test builds). Owner asked about word highlighting while playing:
+  brainstormed only (edge-tts 7.3.1 `boundary="WordBoundary"` gives word times for Microsoft
+  voices; other voices: line-level). Not started.
 - Mobile (2026-11-03): owner chose Android focus; advice given: Android first, iOS later
   (Apple $99/yr + Mac needed; Python core can be reused on iOS via Python 3.13 iOS support).
 - Android v1 on branch `claude/brave-sagan-mijd62` (no PR yet): Kivy prototype deleted;

@@ -76,7 +76,9 @@ ios/                         early iOS Shortcut
 
 GitHub Actions builds everything: a push builds the DMG and the Windows installer (with automatic
 tests); a `v*` tag or a published Release attaches them to the Release. The version is
-`APP_VERSION` in `pali_tts.py`.
+`APP_VERSION` in `pali_tts.py`; for a Release the builds take the version from the Release tag
+(tag `v2.10` → "Read Pāli Aloud v2.10.dmg / .exe / .apk" and "2.10" in Help), so the names always
+match the Release.
 
 ## Credits and licences
 
